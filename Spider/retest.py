@@ -81,17 +81,42 @@ gbkstring2 = '''
                         </tr>
                     </table>
 '''
+    
+bid_response_html = '''
+{"Source":0,"ListingId":8672508,"Title":null,"Date":null,"UrlReferrer":"1","Money":0,"Amount":50,"Reason":null,"ValidateCode":null,"Listing":
+'''
+
 pattern_user_basic_info = re.compile('<div class="lendDetailTab w1000center">.*?<div class="lendDetailTab_tabContent">.*?' 
                                     + '<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?</tr>.*?<tr>.*?' 
                                     + '<td>(\S*?)</td>.*?<td>(\S+)</td>.*?<td>(\S+?)</td>.*?<td>(\S+?)</td>.*?' 
                                     + '<td>(.*?)</td>.*?<td>.*?(\S+).*?</td>.*?<td>(.*?)</td>.*?</tr>.*?</table>', re.S)
+bid_response_pattern = re.compile('.*"ListingId":.*?"UrlReferrer":"1","Money":\d+,"Amount":(\d+),"', re.S)
 
 items = re.findall(pattern_user_basic_info, gbkstring2)
 if items is not None:
     for item in items:
         print item[0]
 
+m = re.search(pattern_user_basic_info, gbkstring2);
+if m is None:
+    print "Not Matched!"
+else:
+    print "%s,%s,%s,%s" % (m.group(1), m.group(2), m.group(3),m.group(4))
+    other,gender, age, marriage,education_level, house, car = m.groups()
+    print "%s,%s,%s,%s" % (other,gender, age, marriage)
+
 url = 'http://invest.ppdai.com/loan/info?id=8314822'
-loanid = re.match('.*info\?id=(\d+)', url)
-if loanid is not None:
-    print loanid.group(1)
+loanidm = re.match('.*info\?id=(\d+)', url)
+if loanidm is not None:
+    loanid = int(loanidm.group(1))
+    print loanid
+    
+actual_mountm = re.search(bid_response_pattern, bid_response_html)
+if actual_mountm is None:
+    print "Bid Response Pattern is not matched. Check it"
+else:
+    actual = int(actual_mountm.group(1))
+    print "Actual Bid: %d" % (actual)
+money = 50
+referer = "http://invest.ppdai.com/bid/info?source=2&listingId=%d" % (loanid) + '%20%20%20%20&title=&date=12%20%20%20%20&' + "UrlReferrer=1&money=%d" % (money)
+print referer

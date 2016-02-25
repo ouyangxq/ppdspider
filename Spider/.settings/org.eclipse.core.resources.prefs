@@ -1,7 +1,15 @@
 eclipse.preferences.version=1
+encoding//biz/AutoBid.py=utf-8
+encoding//biz/BidStrategy.py=utf-8
+encoding//biz/PPBao.py=utf-8
+encoding//biz/PPDHtmlParser.py=utf-8
+encoding//dao/DaoTest.py=utf-8
+encoding//dao/PPDDAO.py=utf-8
+encoding//dao/PPDLoanDAO.py=utf-8
+encoding//dao/PPDUserDAO.py=utf-8
+encoding//spider/PPDSpider.py=utf-8
 encoding/LoanHistory.py=utf-8
 encoding/LoanInfo.py=utf-8
-encoding/PPDSpider.py=utf-8
 encoding/ppdai_riskmiddle.sample.html=UTF-8
 encoding/ppdai_safe.sample.html=UTF-8
 encoding/retest.py=utf-8
