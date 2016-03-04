@@ -20,6 +20,7 @@ create table ppdloan (
      history_left_loan double(10,2) not null,
      history_left_lend double(10,2) not null
 );
+alter table ppdloan add column datetime datetime not null;
 
 # User information
 create table ppduser (
@@ -54,3 +55,14 @@ create table mybid (
 	money integer not null,
 	reason varchar(60)
 );
+# Add DateTime in DB TO record down when the bid happened. 
+alter table mybid add column datetime datetime not null;
+
+create table university (
+	name varchar(25) not null primary key,
+	rank int,
+	score float(4,2),
+	type varchar(8) not null,
+	location varchar (8) not null,
+	pici varchar (10) not null
+)

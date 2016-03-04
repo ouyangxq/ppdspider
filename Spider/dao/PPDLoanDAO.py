@@ -6,8 +6,9 @@ Created on 2016年2月20日
 @author: Administrator
 '''
 import logging
-import datetime
-
+from datetime import datetime
+from datetime import date
+from datetime import timedelta
 
 class PPDLoanDAO(object):
     '''
@@ -22,10 +23,14 @@ class PPDLoanDAO(object):
         self.dao = ppddao
         
     def insert(self, ppdloan):
-        db_stat = ppdloan.get_db_insert_statement()
-        #logging.info("Inserting new loan into DB: %s" %(db_stat))
-        result  = self.dao.execute(db_stat)
-        return result
+        if (self.if_a_new_loan(ppdloan.loanid)):
+            db_stat = ppdloan.get_db_insert_statement()
+            #logging.info("Inserting new loan into DB: %s" %(db_stat))
+            result  = self.dao.execute(db_stat)
+            return result
+        else:
+            logging.debug("Insert LoanInfo: %d is already in DB.")
+            return True;
     
     def if_a_new_loan(self,loanid):
         db_stat = "select loanid from ppdloan where loanid=%d" % (loanid)
@@ -36,13 +41,15 @@ class PPDLoanDAO(object):
         else:
             return False
     
-    def get_loanids_by_date(self, date):
-        date_iso = date.isoformat()
-        yesterday = date + datetime.timedelta(days = -1)
+    def get_last_2_days_loanids(self):
+        today = date.today();
+        date_iso = today.isoformat()
+        yesterday = today + timedelta(days = -1)
         yesterday_iso = yesterday.isoformat()
-        db_stat = "select loanid from ppdloan where date in (\"%s\", \"%s\")" %(date_iso, yesterday_iso)
+        db_stat = "select loanid from ppdloan where date(datetime) in (\"%s\", \"%s\")" %(date_iso, yesterday_iso)
         result  = self.dao.execute(db_stat)
         if result == False:
+            logging.warn("Get Existing LoanIDs of Last 2 days: No Result!!!")
             return []
         else:
             data = self.dao.dbcursor.fetchall()

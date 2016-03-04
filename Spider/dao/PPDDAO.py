@@ -52,11 +52,11 @@ class PPDDAO(object):
             logging.info("DB Executing: %s" % (sql_stat))
             result = self.dbcursor.execute(sql_stat)
             if result:
-                logging.info("SQL Statement executed successfully.")
+                logging.info("DB Update Succeed.")
                 self.dbconn.commit()
                 return True
             else:
-                logging.error("Failed to run: %s" % (sql_stat))
+                logging.debug("Not Result for: %s" % (sql_stat))
                 return False
         except MySQLdb.MySQLError, e:
             logging.error("Failed to execute: %s - %r" % (sql_stat, e))

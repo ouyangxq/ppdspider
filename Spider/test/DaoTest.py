@@ -13,7 +13,7 @@ from dao.PPDLoanDAO import PPDLoanDAO
 from dao.PPDUserDAO import PPDUserDAO
 from datetime import date
 
-class Test(unittest.TestCase):
+class DAOTest(unittest.TestCase):
 
     def test_db_connection(self):
         ppddao = PPDDAO({'host':'localhost','username':'xiaoqi','password':'XiaoqiDB.1','database':'ppdai'})

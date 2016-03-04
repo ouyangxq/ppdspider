@@ -2,6 +2,7 @@
 Created on 2016/02/20
 This Module is the data structure for PPDLoan information
 Notice the user information are stored in PPDUser
+@change: 2016/02/26: change date to datetime 
 @author: Administrator
 '''
 #-*- coding:utf-8 -*-
@@ -10,7 +11,7 @@ from PPD import PPD
 
 TableDefinition = '''
      loanid integer not null primary key,
-     date date not null,
+     datetime datetime not null,
      ppdrate char(3) not null,
      loanrate FLOAT(4,2) not null,
      money integer not null,
@@ -31,7 +32,7 @@ class PPDLoan(PPD):
     data structure for ppdai loan
     '''
     loanid = -1
-    date = None
+    datetime = None # Store the datetime that we capture this Loan
     ppdrate = None  # AAA, AA, A, B, C, D, E, F, G
     loanrate = 0.0  # loan rate can be a float. e.g. 20.5
     money = 1       # loan money
@@ -53,12 +54,12 @@ class PPDLoan(PPD):
         '''
         PPD.__init__(self, 'ppdloan')
         self.loanid     = params['loanid']
+        self.datetime   = params['datetime']
         self.ppdrate    = params['ppdrate']
         self.loanrate   = params['loanrate']
         self.money      = params['money']
         self.maturity   = params['maturity']
         self.userid     = params['userid'] 
-        self.date       = params['date']
         self.age        = params['age']
     
     def set_ppduser(self, ppduser):
@@ -73,10 +74,14 @@ class PPDLoan(PPD):
         self.history_left_lend     = left_lend 
     
     def get_db_insert_statement(self):
-        date_db = self.date.isoformat()
-        db_stat = "insert into ppdloan values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f)" % (self.loanid, \
-                    date_db,self.ppdrate,self.loanrate,self.money,self.maturity,self.userid,self.loantitle, \
+        sql_datetime = self.datetime.strftime("%Y-%m-%d %X")
+        db_stat = "insert into ppdloan (loanid, datetime, ppdrate, loanrate, money, maturity, userid, loantitle, age, " + \
+                    "history_return_ontime, history_overdue_in15d,history_overdue_mt15d, history_total_loan, history_left_loan, history_left_lend)" + \
+                    " values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f)" % (self.loanid, \
+                    sql_datetime,self.ppdrate,self.loanrate,self.money,self.maturity,self.userid,self.loantitle, \
                     self.age,self.history_return_ontime,self.history_overdue_in15d,self.history_overdue_mt15d, \
                     self.history_total_loan,self.history_left_loan,self.history_left_lend)
         return db_stat
     
+    def get_loan_summary(self):
+        return "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s),History(%d,%d,%d),HistoryLoan(%d,%d,%d),Age(%d),Gender(%s)" % (self.ppdrate, self.money, self.loanrate, self.maturity,self.ppduser.education_university, self.ppduser.education_level, self.ppduser.education_type,self.history_return_ontime, self.history_overdue_in15d, self.history_overdue_mt15d, self.history_total_loan, self.history_left_loan, self.history_left_lend, self.age, self.ppduser.gender)

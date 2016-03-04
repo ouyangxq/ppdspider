@@ -29,7 +29,13 @@ class AutoBid(object):
         bid_post_data = urllib.urlencode(bid_info)
         bid_url = "http://invest.ppdai.com/Bid/Bid" 
         referer = "http://invest.ppdai.com/bid/info?source=2&listingId=%d" % (loanid) + '%20%20%20%20&title=&date=12%20%20%20%20&' + "UrlReferrer=1&money=%d" % (money)
-        opener.addheaders = [('Referer', referer)]
+        opener.addheaders.append(('Referer', referer))
+        opener.addheaders.append(('Host','invest.ppdai.com'))
+        opener.addheaders.append(('Origin','invest.ppdai.com'))
+        opener.addheaders.append(('Accept','*/*'))
+        opener.addheaders.append(('Connection','keep-alive'))
+        opener.addheaders.append(('Cache-Control','max-age=0'))
+        opener.addheaders.append(('User-Agent','Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.73 Safari/537.36'))
         response = opener.open(bid_url,bid_post_data)
         html_str = response.read()
         # Check html_str to see if it's good. 

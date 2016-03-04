@@ -34,6 +34,7 @@ class PPDHtmlParser(object):
                                    + '<dt>期限：</dt>.*?<dd>(\d+) <em>个月</em></dd>', re.S)
     pattern_current_progress = re.compile('<span id="process" style="width: (\d+)\%')
     pattern_myaccount_money  = re.compile('<div class="inputbox">.*?<p class="accountinfo clearfix">.*?账户余额.*?<em id="accountTotal">&#165;(\S+?)</em>',re.S)
+    title_pattern = re.compile('<div class="newLendDetailbox">.*?<h3 class="clearfix">.*?<span class="" tt="\d+">(\S+?)</span>', re.S)
     
     def __init__(self):
         '''
@@ -41,7 +42,7 @@ class PPDHtmlParser(object):
         '''
         pass
         
-    def parse_loandetail_html(self, loanid, date, html):
+    def parse_loandetail_html(self, loanid, datetime, html):
         '''
         Parse loan Detail page content to get the loan details in PPDLoan / PPDUser data structure
         Return: ppdloan, ppduser, mymoney
@@ -78,7 +79,7 @@ class PPDHtmlParser(object):
             loanrate = float(loanrate)
         
         " Build PPDLoan and PPDUser instance"
-        ppdloan = PPDLoan({'loanid':loanid, 'date':date, 'loanrate':loanrate, 'ppdrate':ppdrate, \
+        ppdloan = PPDLoan({'loanid':loanid, 'datetime':datetime, 'loanrate':loanrate, 'ppdrate':ppdrate, \
                            'money':money, 'maturity':maturity, 'userid':userid, 'age': age})
         ppduser = PPDUser({'userid':userid, 'gender': gender, 'age': age, 'marriage': marriage, \
                            'house': house, 'car': car, 'education_level': education_level}) 
@@ -96,7 +97,7 @@ class PPDHtmlParser(object):
         "Set Certificates"
         certs = re.search(self.pattern_education_cert, html)
         if (certs != None):
-            ppduser.add_education_cert(certs.group(1), certs.group(3))
+            ppduser.add_education_cert(certs.group(1), certs.group(2), certs.group(3))
         
         "My Account Money"
         mymoneym = re.search(self.pattern_myaccount_money, html)
@@ -104,4 +105,13 @@ class PPDHtmlParser(object):
             mymoney = float(mymoneym.group(1).replace(',',''))
         else:
             mymoney = -1
+        
+        " Loan Title "
+        titlem = re.search(self.title_pattern, html)
+        if titlem is not None:
+            title = titlem.group(1)
+        else:
+            title = "NA"
+        ppdloan.loantitle = title
+        
         return (ppdloan,ppduser,mymoney)

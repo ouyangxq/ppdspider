@@ -65,9 +65,10 @@ class PPDUser(PPD):
         self.car    = params['car']
         self.education_level    = params['education_level']
          
-    def add_education_cert(self, university, education_type):
+    def add_education_cert(self, university,education_level, education_type):
         self.education_university = university
-        self.education_type = education_type
+        self.education_level      = education_level
+        self.education_type       = education_type
     
     def get_db_insert_statement(self):
         db_stat = "insert into ppduser values (\"%s\",\"%s\",%d,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)" \
