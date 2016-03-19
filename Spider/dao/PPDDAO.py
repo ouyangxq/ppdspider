@@ -46,17 +46,16 @@ class PPDDAO(object):
             
     def execute(self, sql_stat):
         if (self.dbconn == None):
-            print "Error: NO DB Handler. Please call connect function first" 
+            logging.error( "Error: NO DB Handler. Please call connect function first") 
             return False
-        try:
-            logging.info("DB Executing: %s" % (sql_stat))
+        try:            
             result = self.dbcursor.execute(sql_stat)
             if result:
-                logging.info("DB Update Succeed.")
+                logging.debug("DB Execution Succeed: %s" % (sql_stat))
                 self.dbconn.commit()
                 return True
             else:
-                logging.debug("Not Result for: %s" % (sql_stat))
+                logging.debug("DB Execution-No Result for: %s" % (sql_stat))
                 return False
         except MySQLdb.MySQLError, e:
             logging.error("Failed to execute: %s - %r" % (sql_stat, e))

@@ -66,7 +66,7 @@ class PPDUser(PPD):
         self.education_level    = params['education_level']
          
     def add_education_cert(self, university,education_level, education_type):
-        self.education_university = university
+        self.education_university = unicode(university)
         self.education_level      = education_level
         self.education_type       = education_type
     

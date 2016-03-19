@@ -8,6 +8,7 @@ Notice the user information are stored in PPDUser
 #-*- coding:utf-8 -*-
 
 from PPD import PPD
+from util.PPBaoUtil import PPBaoUtil
 
 TableDefinition = '''
      loanid integer not null primary key,
@@ -47,6 +48,9 @@ class PPDLoan(PPD):
     history_left_loan     = 0.0     # left loan can be float
     history_left_lend     = 0.0     # money that this user lend to other people, more is better. 
     ppduser               = None    #Reference to PPDUser
+    ''' 20160307: Add score and bid '''
+    score                 = 0
+    bid                   = 0
     
     def __init__(self, params):
         '''
@@ -76,12 +80,17 @@ class PPDLoan(PPD):
     def get_db_insert_statement(self):
         sql_datetime = self.datetime.strftime("%Y-%m-%d %X")
         db_stat = "insert into ppdloan (loanid, datetime, ppdrate, loanrate, money, maturity, userid, loantitle, age, " + \
-                    "history_return_ontime, history_overdue_in15d,history_overdue_mt15d, history_total_loan, history_left_loan, history_left_lend)" + \
-                    " values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f)" % (self.loanid, \
+                    "history_return_ontime, history_overdue_in15d,history_overdue_mt15d, history_total_loan, history_left_loan, history_left_lend,score,bid)" + \
+                    " values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f,%d,%d)" % (self.loanid, \
                     sql_datetime,self.ppdrate,self.loanrate,self.money,self.maturity,self.userid,self.loantitle, \
                     self.age,self.history_return_ontime,self.history_overdue_in15d,self.history_overdue_mt15d, \
-                    self.history_total_loan,self.history_left_loan,self.history_left_lend)
+                    self.history_total_loan,self.history_left_loan,self.history_left_lend,self.score,self.bid)
         return db_stat
     
     def get_loan_summary(self):
-        return "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s),History(%d,%d,%d),HistoryLoan(%d,%d,%d),Age(%d),Gender(%s)" % (self.ppdrate, self.money, self.loanrate, self.maturity,self.ppduser.education_university, self.ppduser.education_level, self.ppduser.education_type,self.history_return_ontime, self.history_overdue_in15d, self.history_overdue_mt15d, self.history_total_loan, self.history_left_loan, self.history_left_lend, self.age, self.ppduser.gender)
+        rank = PPBaoUtil.get_university_rank(self)
+        return "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s,%d),History(%d,%d,%d),HistoryLoan(%d,%d,%d),Age(%d),Gender(%s)" \
+            % (self.ppdrate, self.money, self.loanrate, self.maturity,self.ppduser.education_university, \
+               self.ppduser.education_level, self.ppduser.education_type, rank, self.history_return_ontime, self.history_overdue_in15d, \
+               self.history_overdue_mt15d, self.history_total_loan, self.history_left_loan, self.history_left_lend, self.age, \
+               self.ppduser.gender)

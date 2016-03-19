@@ -23,7 +23,7 @@ class PPDUserDAO(object):
     def insert_if_not_exists(self, ppduser):
         if self.if_a_new_user(ppduser.userid):
             db_stat = ppduser.get_db_insert_statement()
-            logging.info("Adding a new user to DB: %s" %(ppduser.userid))
+            #logging.info("Adding a new user to DB: %s" %(ppduser.userid))
             result  = self.dao.execute(db_stat)
             return result
         else:
