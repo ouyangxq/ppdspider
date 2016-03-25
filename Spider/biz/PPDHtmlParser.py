@@ -37,11 +37,28 @@ class PPDHtmlParser(object):
     pattern_myaccount_money  = re.compile('<div class="inputbox">.*?<p class="accountinfo clearfix">.*?账户余额.*?<em id="accountTotal">&#165;(\S+?)</em>',re.S)
     title_pattern = re.compile('<div class="newLendDetailbox">.*?<h3 class="clearfix">.*?<span class="" tt="\d+">(\S+?)</span>', re.S)
     job_cert_pattern = re.compile('<tr>.*?<td>.*?稳定工作证明\s*?</td>',re.S)
+    benk_detail_pattern = re.compile('<tr>.*?<td>.*?个人常用银行流水\s*?</td>',re.S)
+    getihu_pattern = re.compile('<tr>.*?<td>.*?企业/个体户证明 \s*?</td>',re.S)
     hukou_cert_pattern = re.compile("<p class='clearfix'><i class='hukou'></i>户口所在地")
     shouru_cert_pattern = re.compile("<td>.*?收入证明\s*?</td>", re.S)
     id_card_pattern = re.compile("<td>.*?本人身份证的.*?</td>", re.S)
     ren_hang_trust_cert_pattern = re.compile("<i class='renbankcredit'></i>人行征信认证")
     shebao_gjj_cert_pattern = re.compile("社保公积金")
+    zhifubao_cert_pattern = re.compile("支付宝账户信息")
+    
+    # PPDRate, UserId, money, loanrate, maturity, datetime
+    pattern_history_loan2 = re.compile('<a href="http://help.ppdai.com/Home/List/12" target="_blank" class="altQust">.*?'
+                                    + '<span title="魔镜等级：.*?class="creditRating (\S+)"></span></a>.*?' 
+                                    + '<a href="http://www.ppdai.com/user/\S+" class="username">(\S+?)</a>.*?' 
+                                    + '<div class="newLendDetailMoneyLeft">.*?<dt>借款金额：</dt>.*?<dd><em>&yen;</em>(\S+?)</dd>.*?' 
+                                    + '<dt>年利率：</dt>.*?<dd>(\S+?)<em>%</em></dd>.*?'
+                                    + '<dt>期限：</dt>.*?<dd>(\d+?)\s*?<em>个月</em></dd>.*?'
+                                    + '结束时间：.*?<span class="countdown_row countdown_amount" id="leftTime">(\S+?)</span>', re.S)
+    
+    ''' TBD: Filter the history Loan detail (Rate and Money) and use that in BidStrategy 
+    - We shall not bid any loan that has history Loan Rate as 30% or 36% '''
+    pattern_history_loan = re.compile('<p>历史借款</p>.*?<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?<td>.*?', re.S)
+
     
     def __init__(self):
         '''
@@ -129,23 +146,39 @@ class PPDHtmlParser(object):
         ppdloan.loantitle = title
         
         " 20160306: Set Other Certificates "
-        job = re.search(self.job_cert_pattern, html)
-        if job is not None:
-            ppduser.job_cert = 1
-        shouru = re.search(self.shouru_cert_pattern, html)
-        if shouru is not None:
-            ppduser.shouru_cert = 1
-        hukou = re.search(self.hukou_cert_pattern, html)
-        if hukou is not None:
-            ppduser.hukou_cert = 1
-        renhan_trust = re.search(self.ren_hang_trust_cert_pattern,html)
-        if renhan_trust is not None:
-            ppduser.ren_hang_trust_cert = 1
-        shebao = re.search(self.shebao_gjj_cert_pattern, html)
-        if shebao is not None:
-            ppduser.shebao_gjj_cert = 1
-        idcard = re.search(self.id_card_pattern, html)
-        if idcard is not None:
-            ppduser.idcard_cert = 1
-        
+        ppduser.job_cert = 1 if re.search(self.job_cert_pattern, html) else 0        
+        ppduser.shouru_cert = 1 if re.search(self.shouru_cert_pattern, html) else 0        
+        ppduser.hukou_cert = 1 if re.search(self.hukou_cert_pattern, html) else 0        
+        ppduser.ren_hang_trust_cert = 1 if re.search(self.ren_hang_trust_cert_pattern,html) else 0        
+        ppduser.shebao_gjj_cert = 1 if re.search(self.shebao_gjj_cert_pattern, html) else 0        
+        ppduser.idcard_cert = 1 if re.search(self.id_card_pattern, html) else 0        
+        ppduser.bank_details_cert = 1 if re.search(self.benk_detail_pattern, html) else 0
+        ppduser.getihu_cert = 1 if (re.search(self.getihu_pattern, html)) else 0
+        ppduser.alipay_cert = 1 if re.search(self.zhifubao_cert_pattern, html) else 0
         return (ppdloan,ppduser,mymoney)
+    
+
+    def parse_history_loan_html(self, loanid, html):
+        '''
+        Parse History loan Detail page content to get the loan details in PPDLoan / PPDUser data structure
+        Return: Notice we'll only get very limited information with the history loan page
+        '''
+
+        m = re.search(self.pattern_history_loan, html)
+        if (m is None):
+            logging.error("Not able to parse History Loan %d" % (loanid))
+            return None
+        
+        '<div class="newbidstatus_lb">投标已结束</div>'
+        ppdrate, userid, money, loanrate, maturity, datetime = m.groups()
+        money = int(money.replace(',',''))
+        maturity = int(maturity)
+        loanrate = float(loanrate)
+        year,month,day = re.split('/', datetime)
+        dt = datetime(year,month, day, 12, 0, 0)
+        age = 0
+        
+        ppdloan = PPDLoan({'loanid':loanid, 'datetime':dt, 'loanrate':loanrate, 'ppdrate':ppdrate, \
+                           'money':money, 'maturity':maturity, 'userid':userid, 'age': age})
+        return ppdloan
+                

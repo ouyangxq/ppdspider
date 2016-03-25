@@ -37,7 +37,7 @@ class PPDDAO(object):
             self.dbcursor = self.dbconn.cursor()
             return True
         except:
-            logging.error("Not able to connect to MYSQL Database! Make sure MYSQL services are running!!")
+            logging.error("Not able to connect to MYSQL Database! Make sure MYSQL service is running!!")
             return False
     
     def disconnect(self):

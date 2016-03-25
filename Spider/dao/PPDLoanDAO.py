@@ -44,9 +44,9 @@ class PPDLoanDAO(object):
     def get_last_2_days_loanids(self):
         today = date.today();
         date_iso = today.isoformat()
-        yesterday = today + timedelta(days = -1)
-        yesterday_iso = yesterday.isoformat()
-        db_stat = "select loanid from ppdloan where date(datetime) in (\"%s\", \"%s\")" %(date_iso, yesterday_iso)
+        two_days_ago = today + timedelta(days = -2)
+        two_days_iso = two_days_ago.isoformat()
+        db_stat = "select loanid from ppdloan where datetime>=\"%s\"" %(two_days_iso)
         result  = self.dao.execute(db_stat)
         if result == False:
             logging.warn("Get Existing LoanIDs of Last 2 days: No Result!!!")

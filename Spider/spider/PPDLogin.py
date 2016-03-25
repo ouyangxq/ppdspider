@@ -50,7 +50,7 @@ class PPDLogin(object):
         headers = response.info()
         #logging.info("HTML: %s" %(html))
         for head in headers:
-            logging.info(head)
+            logging.debug("%s: %s" % (head, headers[head]))
     '''
     def query_risk_control(username):
         url = "https://ac.ppdai.com/User/QueryRiskControl"
@@ -77,8 +77,9 @@ class PPDLogin(object):
         login_data = urllib.urlencode(login_info)
         response = opener.open(url, login_data,10)
         logging.info("Get Response: %s", response.read())
-        for head in response.info():
-            logging.info(head)
+        headers = response.info()
+        for head in headers:
+            logging.debug("%s: %s" % (head, headers[head]))
     
     def open_lend(self, opener):
         url = "http://invest.ppdai.com/account/lend"
@@ -96,7 +97,7 @@ class PPDLogin(object):
         info    = response.info()
         #logging.info("Get Response: %s", data)
         for head in info:
-            logging.info("%s=%s" %(head, info.get(head)))
+            logging.debug("%s=%s" %(head, info.get(head)))
     
     def open_blacklist(self, opener):
         url = "http://invest.ppdai.com/account/blacklist"

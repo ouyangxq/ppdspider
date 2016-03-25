@@ -51,6 +51,7 @@ class PPDUser(PPD):
     taobao_seller_cert = 0
     relative_cert      = 0
     shouru_cert        = 0
+    getihu_cert        = 0
 
     def __init__(self, params):
         '''
@@ -71,10 +72,10 @@ class PPDUser(PPD):
         self.education_type       = education_type
     
     def get_db_insert_statement(self):
-        db_stat = "insert into ppduser values (\"%s\",\"%s\",%d,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)" \
+        db_stat = "insert into ppduser values (\"%s\",\"%s\",%d,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)" \
                         % (self.userid, self.gender, self.age, self.marriage, self.house,self.car,self.education_level, \
                           self.education_university, self.education_type, self.ren_hang_trust_cert, self.idcard_cert, \
                           self.hukou_cert, self.alipay_cert, self.job_cert, self.shebao_gjj_cert, self.bank_details_cert, \
-                          self.taobao_seller_cert, self.relative_cert, self.shouru_cert)
+                          self.taobao_seller_cert, self.relative_cert, self.shouru_cert, self.getihu_cert)
         return db_stat
         

@@ -45,11 +45,13 @@ class BidStrategy(object):
             * Reason for Bid or NoBid 
         '''
         if isinstance(ppdloan, PPDLoan) == False:
-            logging.error("Internel Error: Parameter is not with right type")
-            return (False, 0, "Bad Type")
+            logging.error("Internal Error: Parameter is not with right type")
+            return (False, 0, "Internal Error: Bad Type")
         logging.debug("Running BidStrategy Check for ppdloan %d" % (ppdloan.loanid))
-        if (ppdloan.loanrate <= 11):
-            return (False, 0, "NoBid: Loan Rate (%4.2f <= 11)" %(ppdloan.loanrate))
+        if (ppdloan.loanrate <= 18):
+            ''' 20160320: Change to bid for Rate>=19 only to maximum profits '''
+            reason  = ppdloan.get_loan_summary()
+            return (False, 0, "LoanRate(%4.2f<=18),%s" %(ppdloan.loanrate,reason))
         # Check if it's AA and if ppdrate >=11
         if (ppdloan.ppdrate == 'AA'):
             return self.AA_strategy(ppdloan)
@@ -64,7 +66,7 @@ class BidStrategy(object):
         else:
             ppdloan.score = 0
             ppdloan.bid   = 0
-            return (False, 0, "NoBid: PPDai Rate(%s) is too low and not in current scope." % (ppdloan.ppdrate))
+            return (False, 0, "NoBid:PPDai Rate(%s) is too low which is not in current scope." % (ppdloan.ppdrate))
             
     def AA_strategy(self, ppdloan):
         if ppdloan.ppdrate != 'AA':
@@ -75,13 +77,13 @@ class BidStrategy(object):
             actual_bid = 100
             ppdloan.score = actual_bid
             ppdloan.bid   = actual_bid
-            return (True, actual_bid, "Bid(%d) - Rate(AA),Loan(%d,%d,%d)" %(actual_bid, ppdloan.money, ppdloan.loanrate, ppdloan.maturity))
+            return (True, actual_bid, "Bid(%d),Rate(AA),Loan(%d,%d,%d)" %(actual_bid, ppdloan.money, ppdloan.loanrate, ppdloan.maturity))
         else:
             actual_bid = 50
             ppdloan.score = actual_bid
             ppdloan.bid   = actual_bid
             #logging.info("Detected AA Loan %d with Rate %4.2f. Ignore it as we're trying to hit Rate>11% only." % (ppdloan.loanid, ppdloan.loanrate))
-            return (True, 50, "Bid 50 for LoanRate(%4.2f)- Rate(AA),Loan(%d,%d,%d)" %(ppdloan.loanrate, ppdloan.money, ppdloan.loanrate, ppdloan.maturity))
+            return (True, 50, "Bid(50),Rate(AA),Loan(%d,%d,%d)" %(ppdloan.loanrate, ppdloan.money, ppdloan.loanrate, ppdloan.maturity))
             # If we want to be more aggressive. Change this. 
             #bid_money = 50
             #return (True, bid_money, "Bid(%d) - Rate(AA),Loan(%d,%4.2f,%d)" %(bid_money, ppdloan.money, ppdloan.loanrate, ppdloan.maturity))
@@ -129,9 +131,9 @@ class BidStrategy(object):
         ppdloan.bid   = actual_bid
         if (actual_bid < 50):
             ''' 20160306: No Bid for bad A '''
-            return (False,0,"NoBid for A Loan!Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+            return (False,0,"NoBid for A Loan!Score(%d),%s" %(score, reason))
         else:
-            return (True, actual_bid, "Bid/Score(%d/%d) - %s" %(actual_bid, score, reason) )
+            return (True, actual_bid, "Bid/Score(%d/%d),%s" %(actual_bid, score, reason) )
     
     def B_strategy (self, ppdloan):
         if ppdloan.ppdrate != 'B':
@@ -149,14 +151,19 @@ class BidStrategy(object):
         if (title_point < self.P2):
             reason += ",闪电借款标"
         score   = base_point + university_point + history_point + money_point + age_point + title_point + gender_point + cert_point
+        new_total_loan = self.get_new_total_loan(ppdloan)
         ppdloan.score = score
         logging.debug("score(%d) = base(%d) + university(%d) + history(%d) + money(%d)+age(%d)+title(%d)+gender(%d)+other_certs(%d)" % (score, base_point, university_point, history_point, money_point, age_point, title_point, gender_point, cert_point))
         if score < 53:
             ppdloan.bid = 0
-            return (False, 0, "NO Bid,Score(%d<53) - %s" %(score, reason))
+            return (False, 0, "Score(%d<53) - %s" %(score, reason))
         else:
-            if university_point >= 5*self.P0:
-                actual_bid = (68 if money_point >= self.P2 else 58 )
+            if (university_point > 5*self.P0):
+                ''' For Top 10 University, Bid 69 '''
+                actual_bid = (69 if (new_total_loan < 15000 or money_point >= self.P2) else 62)
+            elif (university_point >= 5*self.P0):
+                ''' For Top 10-26 University, Bid 59 '''
+                actual_bid = (66 if (new_total_loan < 10000 or money_point >= self.P2) else 56)
             elif university_point >= 5*self.P1 and ppdloan.ppduser.education_level == '研究生及以上':
                 actual_bid = (62 if money_point >= self.P2 else 56 )
             elif university_point >= 5*self.P1 and ppdloan.ppduser.education_level == '本科':
@@ -182,9 +189,9 @@ class BidStrategy(object):
                 
             ppdloan.bid = actual_bid
             if actual_bid >= 50:
-                return (True, actual_bid, "Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+                return (True, actual_bid, "Bid/Score(%d/%d),%s" %(actual_bid, score, reason))
             else:
-                return (False,0, "Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+                return (False,0, "Score(%d),%s" %(score, reason))
     
     def C_strategy (self, ppdloan):
         if ppdloan.ppdrate != 'C':
@@ -201,32 +208,38 @@ class BidStrategy(object):
         if (title_point < self.P2):
             reason += ",闪电借款标"
         score   = base_point + university_point + history_point + money_point + age_point + title_point + gender_point + cert_point
+        new_total_loan = self.get_new_total_loan(ppdloan)
         actual_bid = 0
         logging.debug("score(%d) = base(%d) + university(%d) + history(%d) + money(%d)+age(%d)+title(%d)+gender(%d)+other_certs(%d)" % (score, base_point, university_point, history_point, money_point, age_point, title_point, gender_point, cert_point))
         ''' If score > 50, it means it's either a new loan, or from money_point perspective, it's a good bid, which is quite important for C & D Rate'''
-        if score >= 52: 
+        if score >= 51: 
             ''' Recheck using University'''
-            if (university_point >= 3*self.P0):
-                ''' For Top 26 University, Bid 59 '''
-                actual_bid = (59 if (money_point >= self.P2) else 52)
+            if (university_point > 3*self.P0):
+                ''' For Top 10 University, Bid 69 '''
+                actual_bid = (69 if (new_total_loan < 15000 or money_point >= self.P2) else 62)
+            elif (university_point >= 3*self.P0):
+                ''' For Top 10-26 University, Bid 59 '''
+                actual_bid = (59 if (new_total_loan < 12000 or money_point >= self.P2) else 52)
             elif history_point >= self.P2:
                 ''' Else, check history records as well '''
-                if university_point >= 3*self.P1:
+                if ppdloan.history_return_ontime == 0 and ppdloan.history_left_loan == 0 and ppdloan.ppduser.education_type == '普通':
+                    actual_bid = (53 if (university_point >= 3*self.P1 ) else 50)
+                elif university_point >= 3*self.P1:
                     actual_bid = (54 if (money_point >= self.P2) else 51)
                 elif university_point >= self.P2 and history_point>=self.P2 and money_point>=self.P2:
                     actual_bid = (52 if (age_point >= self.P1 and gender_point>=self.P2) else 50)
-                elif (ppdloan.ppduser.education_university != 'NULL' and self.get_new_total_loan(ppdloan) <= 9000 and ppdloan.history_left_loan <= 10 and ppdloan.history_return_ontime >= 10):
+                elif (ppdloan.ppduser.education_university != 'NULL' and new_total_loan <= 9000 and ppdloan.history_left_loan <= 10 and ppdloan.history_return_ontime >= 10):
                     # Changed on 20160307
                     # Changed on 20160318 to have history_return_ontime and history_left_loan condition
-                    logging.info("Bid 50 for a good C Loan as the score(%d) is really good, with University(%s),NewTotalLoan(%d)" %(score, ppdloan.ppduser.education_university, self.get_new_total_loan(ppdloan)))
+                    logging.info("Bid 50 for a good C Loan as the score(%d) is really good, with University(%s),NewTotalLoan(%d)" %(score, ppdloan.ppduser.education_university, new_total_loan))
                     actual_bid = 50
                 elif ppdloan.history_left_loan == 0 and ppdloan.ppduser.education_type == '普通':
                     logging.info("Bid 50 for loan without any history loans and good score (%d)" % (score))
                     actual_bid = 50
                 else:
-                    logging.info("NO Bid for %d(score:%d) as current Strategy requires University for all C&D loans!" % (ppdloan.loanid, score))
+                    logging.info("NO Bid for %d(score:%d) as it doesn't match the bid strategy (loan too much or no good university)!" % (ppdloan.loanid, score))
                     actual_bid = 0
-            elif score >= 54 and (ppdloan.ppduser.education_university != 'NULL' and (money_point >= self.P1 and self.get_new_total_loan(ppdloan) < 9000)):
+            elif score >= 54 and (ppdloan.ppduser.education_university != 'NULL' and (money_point >= self.P1 and new_total_loan < 9000)):
                 actual_bid = 50
             else:
                 actual_bid = 0
@@ -235,7 +248,7 @@ class BidStrategy(object):
         ppdloan.score = score
         ppdloan.bid = actual_bid
         if actual_bid < 50:
-            return (False, 0, "NO Bid,Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+            return (False, 0, "Score(%d),%s" %(score, reason))
         else:
             logging.info("Bid for %s Loan!! Bid/Score(%d/%d) - %s" %(ppdloan.ppdrate, actual_bid, score, reason))
             return (True, actual_bid, "Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
@@ -244,13 +257,13 @@ class BidStrategy(object):
     def D_strategy (self, ppdloan):
         if ppdloan.ppdrate != 'D':
             return (False, 0, 'Internel Error: Bad ppdrate: %s - not meet D Strategy Requirement' %(ppdloan.ppdrate))
-        base_point     = 50  
+        base_point     = 51 # Change to 51 to allow first loan with not good age can pass the check. 
         university_point = 3*self.university_strategy(ppdloan)
         history_point    = 2*self.history_strategy(ppdloan)
         money_point      = 3*self.money_strategy(ppdloan) 
         age_point        = 1*self.age_strategy(ppdloan)
         title_point      = 1*self.title_strategy(ppdloan)
-        gender_point     = self.gender_strategy(ppdloan)
+        gender_point     = self.gender_strategy(ppdloan) 
         cert_point       = self.cert_strategy(ppdloan)
         reason  = ppdloan.get_loan_summary()
         if (title_point < self.P2):
@@ -259,39 +272,41 @@ class BidStrategy(object):
         actual_bid = 0
         logging.debug("score(%d) = base_point(%d) + university_point(%d) + history_point(%d) + money_point(%d) + age_point(%d) + title_point(%d)" % (score, base_point, university_point, history_point, money_point, age_point, title_point))
         ''' If score > 50, it means it's either a new loan, or from money_point perspective, it's a good bid, which is quite important for C & D Rate'''
-        if score >= 51: 
+        if score >= 50: 
             ''' Recheck using University'''
             if (university_point >= 3*self.P0):
-                ''' For Top 26 University, Bid 56 '''
-                actual_bid = 58
+                ''' For Top 26 University, Bid 58/52 '''
+                actual_bid = 58 if (money_point >= self.P2) else 52
             elif history_point >= self.P2:
                 ''' Else, check history records as well '''
+                if ppdloan.history_return_ontime == 0 and ppdloan.history_left_loan == 0 and university_point >= 3*self.P2:
+                    actual_bid = (51 if (university_point >= 3*self.P1 ) else 50)
                 if university_point >= 3*self.P1:
-                    actual_bid = (53 if (money_point >= self.P2) else 51)
+                    actual_bid = (53 if (money_point >= self.P1) else 50)
                 elif university_point >= self.P2:
-                    if history_point>=self.P2 and money_point>=self.P2:
+                    if history_point>=self.P2 and money_point>=self.P2 and self.get_new_total_loan(ppdloan)<9500:
                         actual_bid = 50
                     elif score >=52 and (self.get_new_total_loan(ppdloan) < 8000):
                         logging.info("Bid 50 for a good D with new total_loan(%d) less than 8000, university(%s)" % (self.get_new_total_loan(ppdloan), ppdloan.ppduser.education_university))
                         actual_bid = 50
-                elif (ppdloan.ppduser.education_university != 'NULL' and self.get_new_total_loan(ppdloan) < 6000 and ppdloan.history_left_loan <= 10 and ppdloan.history_return_ontime >= 10):
+                elif (ppdloan.ppduser.education_university != 'NULL' and self.get_new_total_loan(ppdloan) < 7000 and ppdloan.history_left_loan <= 10 and ppdloan.history_return_ontime >= 10):
                         logging.info("Bid 50 for a good D with history_Left_loan 0, history_return_ontime(%d),new total_loan(%d) less than 6000, university(%s)" % (ppdloan.history_return_ontime, self.get_new_total_loan(ppdloan), ppdloan.ppduser.education_university))
                         actual_bid = 50
                 else:
-                    logging.info("NO Bid for %d(score:%d) as current Strategy requires University for all C&D loans!" % (ppdloan.loanid, score))
+                    logging.info("NO Bid for %d(score:%d) as it doesn't match the bid strategy (loan too much(>8000) or no good university)!" % (ppdloan.loanid, score))
                     actual_bid = 0
             else:
-                logging.info("NO Bid for %d(score:%d) as current Strategy requires University for all C&D loans!" % (ppdloan.loanid, score))
+                logging.info("NO Bid for %d(score:%d) as History Point(%d) is too low!!" % (ppdloan.loanid, score, history_point))
                 actual_bid = 0
         else:
             actual_bid = 0
         ppdloan.score = score
         ppdloan.bid = actual_bid
         if actual_bid < 50:
-            return (False, 0, "NO Bid,Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+            return (False, 0, "Score(%d),%s" %(score, reason))
         else:
-            logging.info("Bid for %s Loan!! Bid/Score(%d/%d) - %s" %(ppdloan.ppdrate, actual_bid, score, reason))
-            return (True, actual_bid, "Bid/Score(%d/%d) - %s" %(actual_bid, score, reason))
+            logging.info("Bid for %s Loan!! Bid/Score(%d/%d),%s" %(ppdloan.ppdrate, actual_bid, score, reason))
+            return (True, actual_bid, "Bid/Score(%d/%d),%s" %(actual_bid, score, reason))
             #return (True, 50, "Bid/Score(50/%d) - %s" %(50, actual_bid, reason))
         
         
@@ -309,10 +324,8 @@ class BidStrategy(object):
         P2: In Top 500, ('本科','研究生及以上'), 学习方式：普通
         P3: All the rest of them
         '''
-        if (ppdloan.ppduser.education_university == 'NULL') or (ppdloan.ppduser.education_level not in ('本科','研究生及以上')) \
-                or ppdloan.ppduser.education_type != '普通':
-            if (ppdloan.ppduser.education_type == u'普通' and ppdloan.ppduser.education_level == u'本科'):
-                logging.debug("WARN: University_Strategy: Shall match unicode instead - (%s, %s, %s)!!!" %(ppdloan.ppduser.education_university, ppdloan.ppduser.education_level, ppdloan.ppduser.education_type))
+        if (ppdloan.ppduser.education_university == 'NULL') or (ppdloan.ppduser.education_level not in ('本科','研究生及以上','研究生')) \
+                or ppdloan.ppduser.education_type != '普通':            
             return self.P3
         university = ppdloan.ppduser.education_university
         #university = unicode(university) # Already set in PPDLoan
@@ -320,7 +333,9 @@ class BidStrategy(object):
         if university in self.university_to_rank.keys():
             rank = self.university_to_rank[university]
             logging.debug("%s found in University DB. Rank: %d" % (university, rank))
-            if rank <= 26:
+            if rank <= 10:
+                return 2*self.P0
+            elif rank <= 26:
                 return self.P0
             elif (ppdloan.ppdrate == 'A' or ppdloan.ppdrate == 'B'):
                 ''' @20160304: Change to Top 200 for 'A' or 'B' Loans '''
@@ -328,7 +343,7 @@ class BidStrategy(object):
             elif (ppdloan.ppdrate == 'C' or ppdloan.ppdrate == 'D' or ppdloan.ppdrate == 'E'):
                 ''' @20160303: Change to Top 100 to further limit the bid scope and improve bid quality '''
                 ''' @20160317: Change to 0-120-400- '''
-                return self.P1 if (rank <= 120) else (self.P2 if (rank <= 400) else self.P3)
+                return self.P1 if (rank <= 120) else (self.P2 if (rank <= 600) else self.P3)
             else:
                 return self.P3
         else:

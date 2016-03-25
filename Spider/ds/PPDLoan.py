@@ -1,3 +1,4 @@
+#-*- coding:utf-8 -*-
 '''
 Created on 2016/02/20
 This Module is the data structure for PPDLoan information
@@ -5,7 +6,6 @@ Notice the user information are stored in PPDUser
 @change: 2016/02/26: change date to datetime 
 @author: Administrator
 '''
-#-*- coding:utf-8 -*-
 
 from PPD import PPD
 from util.PPBaoUtil import PPBaoUtil
@@ -89,8 +89,24 @@ class PPDLoan(PPD):
     
     def get_loan_summary(self):
         rank = PPBaoUtil.get_university_rank(self)
-        return "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s,%d),History(%d,%d,%d),HistoryLoan(%d,%d,%d),Age(%d),Gender(%s)" \
+        summary = "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s,%d),History(%d,%d,%d),HistoryLoan(%d,%d,%d),Age(%d),%s" \
             % (self.ppdrate, self.money, self.loanrate, self.maturity,self.ppduser.education_university, \
                self.ppduser.education_level, self.ppduser.education_type, rank, self.history_return_ontime, self.history_overdue_in15d, \
                self.history_overdue_mt15d, self.history_total_loan, self.history_left_loan, self.history_left_lend, self.age, \
                self.ppduser.gender)
+        certs = None
+        if self.ppduser.getihu_cert == 1:
+            certs = ",Cert(个体户" if certs is None else (certs + ",个体户")
+        if self.ppduser.bank_details_cert == 1:
+            certs = ",Cert(银行流水" if certs is None else (certs + ",银行流水")
+        if self.ppduser.job_cert == 1:
+            certs = ",Cert(工作" if certs is None else (certs + ",工作")
+        if self.ppduser.ren_hang_trust_cert == 1:
+            certs = ",Cert(征信" if certs is None else (certs + ",征信")
+        if self.ppduser.shouru_cert == 1:
+            certs = ",Cert(收入" if certs is None else (certs + ",收入")
+        if self.ppduser.alipay_cert == 1:
+            certs = ",Cert(支付宝" if certs is None else (certs + ",支付宝")
+        certs = ",Cert(NA)" if certs is None else (certs + ")")
+        summary += certs
+        return summary

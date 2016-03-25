@@ -24,12 +24,13 @@ pattern = re.compile('<h3>拍拍贷统计信息</h3>.*?<p>历史统计</p>.*?<p>
                       '.*?共计借入：<span class="orange">&#165;(\S+)</span>.*?待还金额：<span class="orange">&#165;(\S+)</span>' + 
                      '.*?待收金额： <span class="orange">.*?&#165;(\S+).*?</span>.*?</p>', re.S)
 
+'''
 items = re.findall(pattern, gbkstring)
 if items != None and len(items) > 0:
     print items
 else:
     print "No Match!"
-
+'''
 gbkstring2 = '''
    <div class="lendDetailTab w1000center">
         <div class="lendDetailTab_tabContent">
@@ -92,6 +93,7 @@ pattern_user_basic_info = re.compile('<div class="lendDetailTab w1000center">.*?
                                     + '<td>(.*?)</td>.*?<td>.*?(\S+).*?</td>.*?<td>(.*?)</td>.*?</tr>.*?</table>', re.S)
 bid_response_pattern = re.compile('.*"ListingId":.*?"UrlReferrer":"1","Money":\d+,"Amount":(\d+),"', re.S)
 
+'''
 items = re.findall(pattern_user_basic_info, gbkstring2)
 if items is not None:
     for item in items:
@@ -120,3 +122,12 @@ else:
 money = 50
 referer = "http://invest.ppdai.com/bid/info?source=2&listingId=%d" % (loanid) + '%20%20%20%20&title=&date=12%20%20%20%20&' + "UrlReferrer=1&money=%d" % (money)
 print referer
+'''
+
+if __name__ == '__main__':
+    university = u"西安电子科技大学创新学院"
+    m = re.match(u"(\S+大学)\S+学院", university)
+    if (m is not None):
+        print "Matched: %s" % (m.group(1))
+    else:
+        print university

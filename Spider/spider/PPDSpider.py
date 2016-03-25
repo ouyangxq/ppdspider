@@ -29,11 +29,16 @@ class PPDSpider(object):
     opener = None
     cookie = None
     ppdlogin = None
+    ppbao_config = None # This is to share the intersted ppd rate and loanrate
     
     risksafe = 'safe'
     riskmiddle = 'riskmiddle'
     riskhigh   = 'riskhigh'
     risktype = [risksafe, riskmiddle, riskhigh]
+    '''!!! 20160320: Any Loan ask for more than this number will NOT be parsed !!!'''
+    ''' Probably shall put into a slow thread which is just for logging purpose '''
+    ''' An fast thread to only scan those with good education background '''
+    MAX_LOAN = 12000
     
     login_url     = "https://ac.ppdai.com/User/Login?message=&Redirect="
     safe_page_url = 'http://invest.ppdai.com/loan/list_safe_s0_p5?Rate=0'
@@ -44,22 +49,24 @@ class PPDSpider(object):
     ''' loanid_pattern: PPDRate, LoanURL, Title, Certs '''
     # Change rank="4" to rank="\d" as that's made PPBao only select C biao!!
     loanid_pattern  = re.compile('<a href="http://help.ppdai.com/Home/List/12" target="_blank" rank="\d">.*?<i class="creditRating (\S+?)" title=.*?'
-                                 + '<div class="w230 listtitle">.*?<a class="title ell" target="_blank" href="(.*?)" title="(.*?)">.*?</a>' 
-                                 + '.*?</div>.*?<div class="w90 cert" id="cert">(.*?)</div>.*?<div class="w110 brate" >.*?(\d+)<span>%</span>', re.S)
+                                 + '<div class="w230 listtitle">.*?<a class="title ell" target="_blank" href="(.*?)" title=".*?">.*?</a>' 
+                                 + '.*?</div>.*?<div class="w90 cert" id="cert">(.*?)</div>.*?<div class="w110 brate".*?<span>%</span>.*?'
+                                 + '<div class="w90 sum"> <span>&yen;</span>(\S+?)\s*?</div>', re.S)
     loan_count_pattern = re.compile('<span class="fr">共找到 <em class="cfe8e01">(\d+)</em> 个标的</span>', re.S)
     page_pattern = re.compile("<div class='pager'><span class='pagerstatus'>共(\d+)页", re.S)
     certs_xueli_pattern = re.compile("<i class='record' title='学历认证'></i>", re.S)
     certs_mobile_pattern = re.compile("<i class='phone'  title='手机实名认证'></i>", re.S)
     
-    def __init__(self,loginid):
+    def __init__(self,loginid, ppbao_config):
         self.login_url = "https://ac.ppdai.com/User/Login?redirect="
         self.cookie_file = "ppdai_cookie.%s.txt" %(loginid) # File to store cookies to be used for all connections
         self.ppdlogin = PPDLogin(self.cookie_file)
+        self.ppbao_config = ppbao_config
         
     def get_login_url(self):
         return self.login_url
     
-    def login2(self,ppdloginid, ppdpasswd):
+    def login(self,ppdloginid, ppdpasswd):
         try:
             (opener,cookie) = self.ppdlogin.init_opener(self.cookie_file)
             self.ppdlogin.before_login(ppdloginid,ppdpasswd, opener)
@@ -88,7 +95,7 @@ class PPDSpider(object):
     
     def login_until_success(self,username, password):
         try: 
-            (opener, ppduserid) = self.login2(username, password)
+            (opener, ppduserid) = self.login(username, password)
             count = 0
             while opener == None:
                 count += 1;
@@ -97,7 +104,7 @@ class PPDSpider(object):
                     sleep_time = random.randint(120,300)
                 logging.error("Error: Not able to login to PPDAI(www.ppdai.com). Retry in %d seconds! RetryCount(%d)" %(sleep_time, count))
                 sleep(sleep_time)
-                (opener, ppduserid) = self.login2(username, password)
+                (opener, ppduserid) = self.login(username, password)
             logging.info("Login to www.ppdai.com Successfully!!!")
             return (opener, ppduserid)
         except Exception, e:
@@ -148,12 +155,17 @@ class PPDSpider(object):
         result_list = []
         for item in items:
             # 20160312: only search Loan with Xueli and Mobile certificates 
-            ppdrate, loanurl, title, certs = (item[0], item[1], item[2], item[3])
+            ppdrate, loanurl, certs, loan_money_str = (item[0], item[1], item[2], item[3])
+            loanmoney = int(loan_money_str.replace(',',''))
+            xueli_m = re.search(self.certs_xueli_pattern, certs)
+            mobile_m = re.search(self.certs_mobile_pattern, certs)           
             #logging.debug("%s, %s, %s, %s" % (ppdrate, loanurl, title, certs))
-            if (ppdrate in ('AAA', 'AA')):
-                result_list.append(loanurl)
-            elif ((re.search(self.certs_xueli_pattern, certs) is None) and (re.search(self.certs_mobile_pattern, certs) is None)):
+            if ((ppdrate in self.ppbao_config.strategy_ppdrate_list) == False):
+                logging.debug("Ignore Loan as ppdrate(%s) is not interested(Not in PPBao Config): %s" % (ppdrate, loanurl))
+            elif (xueli_m is None) and (mobile_m is None):
                 logging.debug("No Xueli and Mobile Cert!! Ignore loan %s" %(loanurl))
+            elif (loanmoney >= self.MAX_LOAN):
+                logging.debug("Ignore Loan as it ask for more than MAX_LOAN (%d>%d) - %s" % (loanmoney, self.MAX_LOAN, loanurl))
             else:
                 result_list.append(loanurl)
                 
@@ -271,3 +283,21 @@ class PPDSpider(object):
                 return int(m2.group(1))
             else:
                 return None
+    
+    # Read Histroy Loan
+    def open_history_loan(self, loanurl):
+        headers = {
+                'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Upgrade-Insecure-Requests':'1',
+                'Accept-Language':'zh-CN,zh;q=0.8,en;q=0.6',
+                'Host':'invest.ppdai.com',
+                'Accept-Encoding':'gzip, deflate, sdch',
+                'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.73 Safari/537.36',
+                'Connection':'keep-alive',
+                'Cache-Control':'max-age=0'  
+            }
+        self.opener = PPBaoUtil.add_headers(self.opener, headers)
+        response = self.opener.open(loanurl,None,10)
+        html_str = PPBaoUtil.get_html_from_response(response)
+        response.close()
+        return html_str

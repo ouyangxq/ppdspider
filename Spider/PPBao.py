@@ -1,5 +1,5 @@
 #!python
-#-*- coding:utf-8 -*-
+#-*- coding:utf8 -*-
 
 '''
 Created on 20160221
@@ -26,14 +26,15 @@ from time import sleep
 import random
 import traceback
 from sys import argv
+from util.PPBaoConfig import PPBaoConfig
+from biz.BidStrategyPlus import BidStrategyPlus
 
-
-def init_logging(ppdid):
+def init_logging(ppdid, logdir):
     today = date.today().isoformat()
-    logfile = "D:/ppdai/ppbao.%s.%s.log" % (ppdid, today)
+    logfile = "%s/ppbao.%s.%s.log" % (logdir, ppdid, today)
     i = 1
     while os.path.exists(logfile):
-        logfile = "D:/ppdai/ppbao.%s.%s.%d.log" % (ppdid, today, i)
+        logfile = "%s/ppbao.%s.%s.%d.log" % (logdir, ppdid, today, i)
         i += 1
     logging.basicConfig(level=logging.DEBUG,
                 format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -48,6 +49,10 @@ def init_logging(ppdid):
     logging.getLogger('').addHandler(console)
 
 
+def init_ppbao(argv):
+    ''' TO Be implemented '''
+    pass
+
 # MAIN
 if __name__ == '__main__':
     '''
@@ -61,24 +66,27 @@ if __name__ == '__main__':
         Record the Loan information and User information into MYSQL
     4. Sleep an round time and continue with step 2
     '''
- 
+    ppbao_config_file = None
+    NOBID = False # !!! NOBID Mode until we fix the Spider!!! This is only for testing purpose.
     if (len(argv) == 1):
-        ppdloginid = '18616856236'
+        ppbao_config_file = "conf/ppbao.config"
     elif (len(argv) == 2):
-        me,ppdloginid = argv
+        me,ppbao_config_file = argv
     else:
         print "Error: More than 1 argument is provided!"
-        print "Usage: python PPBao.py <ppdai_user_id>"
+        print "Usage: python PPBao.py <ppbao_config_file>"
         exit (-1)
-    # !!! NOBID Mode until we fix the Spider!!! 
-    NOBID = False
+
     # Initialize
-    init_logging(ppdloginid)
+    ppbao_config = PPBaoConfig(ppbao_config_file)
+    ppdloginid,dbhost,dbuser,dbpwd,dbname = ppbao_config.read_ppbao_config()
+    init_logging(ppdloginid, ppbao_config.logdir)
     logging.info("Welcome to PPBao System!")
     logging.info("Developed By Xiaoqi Ouyang. All Rights Reserved@2016-2017")
+    logging.info("PPBao Config: %s,%s,%s,%s,%s" % (ppdloginid,dbhost,dbuser,dbpwd,dbname))
 
     # Init DB Modules
-    ppddao = PPDDAO({'host':'localhost','username':'xiaoqi','password':'XiaoqiDB.1','database':'ppdai'})
+    ppddao = PPDDAO({'host':dbhost,'username':dbuser,'password':dbpwd,'database':dbname})
     dbok   = ppddao.connect()
     if dbok == False:
         logging.error("Error: Not able to connect to MySQL! Please Fix it. Exiting now")
@@ -98,12 +106,11 @@ if __name__ == '__main__':
     else:
         PPBaoUtil.set_university_to_rank(university_to_rank)
         
-    # Keep loain is in memory for expire_time, then read it from DB.
+    # Keep loain is in memory for fast processing
     loanids_in_memory = loandao.get_last_2_days_loanids()
-    #logging.debug(loanids_in_memory)
 
     # Login to PPDAI!
-    spider = PPDSpider(ppdloginid)
+    spider = PPDSpider(ppdloginid, ppbao_config)
     parser = PPDHtmlParser()
    
     (opener, ppduserid) = spider.login_until_success(ppdloginid, ppdpasswd) 
@@ -112,6 +119,7 @@ if __name__ == '__main__':
         exit(4)
     # Initialize Strategy & AutoBid Components
     strategy = BidStrategy(university_to_rank)
+    strategy_plus = BidStrategyPlus(ppbao_config)
     autobid  = AutoBid()
 
     ''' We're ready to have FUN now!!! ''' 
@@ -120,7 +128,7 @@ if __name__ == '__main__':
     error_count = 0 # This record down how many errors we have during the run.
     last_url    = spider.get_login_url()  # This is used to record the last URL to use as Referer
     while (1):
-        ''' 20160304: Add AutoLogin after 20 Errors '''
+        ''' 20160304: Add AutoLogin after 20 Errors so as we can recover from unexpected error/exceptions '''
         if error_count >= 20:
             sleep(random.randint(30,60))
             logging.warn("PPBAO: We've encountered %d errors. We'll re-login to continue!" % (error_count))
@@ -144,7 +152,7 @@ if __name__ == '__main__':
                     error_count += 5;
                     continue;
                 else:
-                    logging.info("Count of Loans for %s: %d. Checking..." % (risk, count))
+                    logging.info("Count of Loans in %s: %d. Checking..." % (risk, count))
                     sleep(random.randint(1,3))
                 # Reset Pages to not get too many unuseful DATA
                 if ((risk == spider.risksafe or risk == spider.riskhigh) and pages > 2):
@@ -202,11 +210,13 @@ if __name__ == '__main__':
                                 sleep(random.randint(1,5))
                                 continue;
                             # AutoBid
-                            ifbid,bidmoney, reason = strategy.check(ppdloan)
+                            ifbid,bidmoney, reason = strategy_plus.check_by_strategy(ppdloan)
                             if ((bidmoney is not None) and (mymoney < bidmoney)):
-                                logging.warn("NOT ENOUGH MONEY in My Account to Bid(%d<%d). WIll Run without BID!!!" % (mymoney,bidmoney))
+                                logging.warn("NOT ENOUGH MONEY in My Account to Bid(%d<%d). Will Run without BID!!!" % (mymoney,bidmoney))
+                                logging.info("No Money to Bid for %d: %s" % (loanid, reason))
                             elif ifbid == True:
                                 logging.warn("ATTENTION: Bid Loanid %d with Money %d (MyAccount Left:%4.2f) - Reason: %s" %(loanid, bidmoney, mymoney, reason))
+                                ppdloan.score = bidmoney
                                 if NOBID == True:
                                     ppdloan.bid = 0 # override to 0
                                     mybiddao.insert_bid_record(loanid, now, 0, ppduserid, "NoBidMode:" + reason)
@@ -218,9 +228,10 @@ if __name__ == '__main__':
                                         logging.info("DONE!!! Bid %d for loanid %d!!!" % (actual_bid_money, loanid))
                                     else:
                                         logging.warn("Bid Failed. No Worries. let's keep going!")
+                                    ppdloan.bid = actual_bid_money
                                 
                             else:
-                                logging.info("BidStragegy Check for %d: %s" %(loanid, reason))
+                                logging.info("NoBid for %d: %s" %(loanid, reason))
     
                             # Write to MYSQL
                             loanids_in_memory.append(loanid)
@@ -234,11 +245,8 @@ if __name__ == '__main__':
                     sleep(random.randint(1,5))
             except Exception, e:
                 error_count += 1
-                logging.error("Un-Caught Error!!!Check IT!! %r" %(e))
+                logging.error("Un-Caught Error!!! Continue with next round - Please do Check IT!! %r" %(e))
                 traceback.print_exc()
-                #logging.info("Sleep 300 seconds before proceeding with next action(Login again and recheck!");
-                #sleep(300)
-                #spider.login(ppdloginid,ppdpasswd)
                 sleep(random.randint(6,12))
         rd += 1
         if (rd % 20 == 0):

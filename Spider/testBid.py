@@ -15,10 +15,12 @@ from spider.PPDSpider import PPDSpider
 
 
 if __name__ == '__main__':
+    pass
+'''
     loanid = '8672508'
     money = '50'
     spider = PPDSpider()
-    opener = spider.login('18616856236', 'Oyxq270')
+    opener = spider.login('18616856236', '')
     #"text": "Reason=&Amount=50&ListingId=8726000&UrlReferrer=1&SubListType=0",
     bid_info = {"Reason":'', "Amount":money, "ListingId":loanid, "UrlReferrer":"1", "SubListType":'0'}
     bid_post_data = urllib.urlencode(bid_info)
@@ -27,3 +29,4 @@ if __name__ == '__main__':
     response = opener.open(bid_url,bid_post_data)
     html_str = response.read()
     print html_str
+'''
