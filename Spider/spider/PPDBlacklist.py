@@ -11,6 +11,7 @@ import urllib2
 import logging
 from ds.PPDBlackLoan import PPDBlackLoan
 from time import sleep
+from ds.MyProfit import MyProfit
 
 class PPDBlacklist(object):
     '''
@@ -23,21 +24,49 @@ class PPDBlacklist(object):
                                   '</span>.*?</td>.*?<td>&#165;(.*?) / &#165;(.*?) / &#165;(\d+?).\d+</td>.*?' +                                
                                   '.*?<td>(\d+)\s*?天（(\d+)\s*?天） </td>', re.S)
     page_pattern = re.compile("<div class='pager'><span class='pagerstatus'>共(\d+)页</span>")
+    
+    pattern_profits = re.compile('<div class="my-f-r-d-top">累计收益</div>\s+?<div class="my-f-r-d-bt"><span style="font-size: 19px;">¥</span>\s*(\S+?)</div>\s+</div>\s+' +
+                                 '<div class="my-f-r-detail br-lr fl">.*?</div>\s+<div class="my-f-r-detail fl">\s+' +
+                                 '<div class="my-f-r-d-top">待收收益</div>\s+?<div class="my-f-r-d-bt"><span style="font-size: 19px;">¥</span>\s*(\S+?)</div>', re.S)
+    
+    pattern_blacklist_summary = re.compile('共(\d+)个列表，逾期本金/已还金额/投标金额：&#165;(\S+?)元&nbsp;/&nbsp;&#165;(\S+?)元&nbsp;/&nbsp;&#165;(\S+?)元')
+    
     ppdspider = None
+    blacklist = []
+    realized_profits = 0.0
+    unrealized_profits = 0.0
+    num_of_blacklist = 0
+    toubiao_money = 0
+    returned_money = 0.0
+    yuqi_money = 0.0
+    max_loss_money = 0.0
+    min_profits = 0.0
+    html_str = None
+    
     def __init__(self, ppdspider):
         '''
         Constructor
         '''
         self.ppdspider = ppdspider
+        self.blacklist = []
+        self.realized_profits = 0.0
+        self.unrealized_profits = 0.0
+        self.num_of_blacklist = 0
+        self.toubiao_money = 0
+        self.returned_money = 0.0
+        self.yuqi_money = 0.0
+        self.max_loss_money = 0.0
+        self.min_profits = 0.0
+        self.html_str = None
     
-    def get_blacklist(self, page):
+    def open_blacklist_page(self, page):
         try:
             if (page > 1):
                 url = "http://invest.ppdai.com/account/blacklist?PageIndex=%d&IsCalendarRequest=0" % (page)
                 refid = page - 1
                 referer = "http://invest.ppdai.com/account/blacklist?PageIndex=%d&IsCalendarRequest=0" % (refid)
             else:
-                url = self.blacklist_url
+                url = "http://invest.ppdai.com/account/blacklist?UserName=&LateDayTo=1&LateDayFrom=&ListingTitle="
                 referer = "http://invest.ppdai.com/account/lend"
             headers = {
                 'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -52,31 +81,51 @@ class PPDBlacklist(object):
             response = opener.open(url,None,15)
             html_str = PPBaoUtil.get_html_from_response(response)
             response.close()
-            logging.debug("html_str")
-            blacklist = PPDBlacklist.parse_blacklist(html_str)
-            if (page > 1):
-                logging.info("Return for Page %d" %(page))
-                return blacklist
-            else:
-                sleep(5)
-                m = re.search(self.page_pattern, html_str);
-                if (m is None):
-                    return blacklist
-                else:
-                    pages = int(m.group(1))
-                    logging.info("Got %d pages of black loans!!" % (pages))
-                    if pages > 1:
-                        for pageindex in range(2, pages+1): # notice 
-                            blist = self.get_blacklist(pageindex)
-                            for ele in blist:
-                                blacklist.append(ele)
-                    return blacklist
+            return html_str;
         except urllib2.URLError, e:
             logging.error("Not able to open %s, %r" % (self.blacklist_url, e))
             return None
         except Exception,e:
             logging.error("On OpenPage %s - Caught Exception %r" %(self.blacklist_url,e))
             return None
+    
+    " Get Black List " 
+    def get_blacklist(self):
+        html_str = self.open_blacklist_page(1)
+        self.html_str = html_str # Only set this for Page 1
+        blacklist = PPDBlacklist.parse_blacklist(html_str)
+        
+                    #exit (-1)
+        m = re.search(self.page_pattern, html_str);
+        if m is not None:
+            pages = int(m.group(1))
+            logging.info("Got %d pages of black loans!!" % (pages))
+            for pageindex in range(2, pages+1): # notice 
+                sleep(5)
+                html = self.open_blacklist_page(pageindex)
+                blist = PPDBlacklist.parse_blacklist(html)
+                for ele in blist:
+                    blacklist.append(ele)
+        return blacklist;
+    
+    " Get Profits"
+    def get_myprofit(self, date, ppbaouserid):
+        profitm = re.search(self.pattern_profits, self.html_str)
+        myprofit = MyProfit(date, ppbaouserid)
+        if profitm is not None:
+            realized, unrealized = profitm.groups()
+            myprofit.set_profit(float(realized.replace(',', '')), float(unrealized.replace(',', '')))
+            logging.info("Realized Profit: %6.2f - Unrealized: %6.2f" % (myprofit.realized_profits, myprofit.unrealized_profits))
+        else:
+            logging.error("Not Aable to get Profits!! Failed to parse BlackList Loan Page!!")
+            exit (-1)
+        blacklist_summarym = re.search(self.pattern_blacklist_summary, self.html_str)
+        if blacklist_summarym is not None:
+            num_of_bloan, yuqi, returned, toubiao = blacklist_summarym.groups()
+            myprofit.set_blacklist(int(num_of_bloan), float(toubiao.replace(',','')), float(returned.replace(',', '')), float(yuqi.replace(',','')))
+        else: 
+            logging.warn("Not Aable to get Black Loan Summary!! Failed to parse BlackList Loan Page!! Assume NONE for now!")
+        return myprofit
     
     @staticmethod
     def parse_blacklist(html):

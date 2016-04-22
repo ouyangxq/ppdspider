@@ -19,6 +19,7 @@ class AutoBid(object):
     bid_response_pattern = re.compile('.*"ListingId":.*?"UrlReferrer":"1","Money":\d+,"Amount":(\d+).*Message":"投标成功","', re.S)
     actual_bid_pattern = re.compile("已投 &#165;(\d+), 占 ")
     pattern_current_progress = re.compile('<span id="process" style="width:\s+(\S+?);"></span>')
+    patter_myaccount_left = re.compile('账户余额：\s+<em id="accountTotal">&#165;(\S+?)</em>',re.S)
     
     def __init__(self):
         '''
@@ -40,7 +41,7 @@ class AutoBid(object):
         opener = PPBaoUtil.add_headers(opener, headers)
         response = opener.open(loanurl, None, 10)
         html = PPBaoUtil.get_html_from_response(response)
-        logging.debug("Get Response: %s", html)
+        #logging.debug("Get Response: %s", html)
         response_headers = response.info()
         for head in response_headers:
             logging.debug("%s:%s" % (head, response_headers[head]))
@@ -111,7 +112,7 @@ class AutoBid(object):
         opener = PPBaoUtil.add_headers(opener, headers)
         response = opener.open(bidurl, upost_data, 15)
         html = PPBaoUtil.get_html_from_response(response)
-        logging.debug("Get Response: %s", html)
+        #logging.debug("Get Response: %s", html)
         response_headers = response.info()
         for head in response_headers:
             logging.debug("%s:%s" % (head, response_headers[head]))
@@ -145,7 +146,13 @@ class AutoBid(object):
             else: 
                 logging.warn("Not match ActualBid Pattern. Most likely Bid is not successful! Do Check it")
             actual_bid = -1
-        return actual_bid
+        # -1 means not parsed from html
+        mymoney = -1
+        ac = re.search(self.patter_myaccount_left, html)
+        if (ac is not None):
+            mymoney = float(ac.group(1).replace(',',''))
+            logging.info("My Account Left: %4.2f" % (mymoney))
+        return (actual_bid, mymoney)
     
     def bid(self, opener, loanid, maturity, bidmoney, reason):
         try: 

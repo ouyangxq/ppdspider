@@ -21,6 +21,10 @@ create table ppdloan (
      history_left_lend double(10,2) not null
 );
 alter table ppdloan add column datetime datetime not null;
+alter table ppdloan add column has_30or36rate_loan_history BOOLEAN DEFAULT FALSE;
+alter table ppdloan add column has_lt1000_loan_history BOOLEAN DEFAULT FALSE; 
+alter table ppdloan add column new_total_loan double(10,2);
+alter table ppdloan add column history_highest_total_loan double(10,2);
 
 # User information
 create table ppduser (
@@ -50,13 +54,14 @@ insert into ppduser values ('pdu2517', 'male', 34, 'married', 'yes', 'no', 'mast
 # My Bid records
 # All loan related information are in ppdloan table
 create table mybid (
-	loanid integer not null primary key,
-	date date not null,
+	loanid integer not null,
+	datetime datetime not null,
 	money integer not null,
-	reason varchar(60)
+	reason varchar(180) not null,
+	ppduserid char(15) not null,
+	byautobid boolean not null default 0,
+	primary key (loanid,ppduserid)
 );
-# Add DateTime in DB TO record down when the bid happened. 
-alter table mybid add column datetime datetime not null;
 
 create table university (
 	name varchar(25) not null primary key,
@@ -65,4 +70,34 @@ create table university (
 	type varchar(8) not null,
 	location varchar (8) not null,
 	pici varchar (10) not null
-)
+);
+
+create table blacklist (
+	id integer not null auto_increment,
+	loanid integer not null,
+	ppbaouserid char(15) not null,
+	loanuserid char(15) not null,
+	loantitle varchar(40) not null,
+	returned_money FLOAT(4,2) not null,
+	overdue_money FLOAT(4,2) not null,
+	bid_money integer not null,
+	overdue_days integer not null,
+	history_max_overdue_days integer not null,
+	overdue_date date not null,
+	return_date date default NULL,
+	primary key (id)
+);
+
+create table myprofit (
+    date date not null,
+    ppbaouserid char(15) not null,
+    realized_profits FLOAT(4,2) not null,
+    unrealized_profits FLOAT(4,2) not null,
+    blacklist_count int not null,
+    blacklist_bid_money int not null,
+    blacklist_returned_money FLOAT(4,2) not null,
+    blacklist_overdue_money FLOAT(4,2) not null,
+    max_loss_money FLOAT(4,2) not null,
+    min_profits FLOAT(4,2) not null,
+    primary key (date,ppbaouserid)
+);

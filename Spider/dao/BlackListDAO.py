@@ -29,7 +29,7 @@ class BlackListDAO(object):
                 existing_list.remove(blackloan.loanid)
                 self.ppddao.execute(update_stat)
             else:
-                insert_stat = blackloan.get_db_insert_statement()
+                insert_stat = blackloan.get_sql_insert_statement()
                 self.ppddao.execute(insert_stat)
         ''' If any item left in existing_list, that must has been payed back '''
         today = date.today().isoformat()
@@ -51,4 +51,7 @@ class BlackListDAO(object):
         
         return black_loanid_list
                 
-                
+    def update_myprofit(self, myprofit):
+        sql = myprofit.get_sql_insert_statement();
+        logging.info("Update MYProfit SQL: %s" % (sql))
+        self.ppddao.execute(sql)  

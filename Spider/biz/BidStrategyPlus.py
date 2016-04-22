@@ -25,6 +25,7 @@ class BidStrategyPlus(object):
         '''
         Constructor
         '''
+        self.bid_strategy_list = []
         self.ppbao_config = ppbao_config
         for strategy_str in ppbao_config.bid_strategy_strlist:
             bs = BidStrategyBuilder(strategy_str)
@@ -37,5 +38,5 @@ class BidStrategyPlus(object):
             (ifbid, money, reason) = strategy.check_by_strategy(ppdloan)
             if (ifbid == True and money > 0):
                 return (ifbid, money, reason)
-        logging.debug("No Bid for %d as no Strategy match this Loan!" % (ppdloan.loanid))
+        #logging.info("No Bid for %d as no Strategy match this Loan!" % (ppdloan.loanid))
         return (False, 0, ppdloan.get_loan_summary())

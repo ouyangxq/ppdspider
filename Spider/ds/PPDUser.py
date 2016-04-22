@@ -52,6 +52,8 @@ class PPDUser(PPD):
     relative_cert      = 0
     shouru_cert        = 0
     getihu_cert        = 0
+    student_cert       = 0
+    driver_cert        = 0
 
     def __init__(self, params):
         '''

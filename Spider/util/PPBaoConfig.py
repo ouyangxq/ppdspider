@@ -27,6 +27,10 @@ class PPBaoConfig(object):
         '''
         Constructor
         '''
+        self.strategy_ppdrate_list = []
+        self.strategy_loanrate_list = []
+        self.bid_strategy_strlist = []
+        self.ppdloginid = None
         self.ppbao_config = config
         
     
@@ -35,7 +39,7 @@ class PPBaoConfig(object):
             fh = file(self.ppbao_config,'r')
             for line in fh:
                 line = line.rstrip()
-                if(re.match('#', line)):
+                if(re.match('#', line) or re.match('^\s*$', line)):
                     # This is a comment line, ignore. 
                     continue
                 item,value = re.split('=', line, maxsplit=2)
@@ -53,9 +57,12 @@ class PPBaoConfig(object):
                     self.logdir = value
                 elif (item == 'Strategy_PPDRate'):
                     self.strategy_ppdrate_list = re.split(',', value);
+                elif (item == 'Strategies'):
+                    # XXX: TO be implemented.
+                    pass
                 elif (item == 'Strategy_LoanRate'):
                     self.strategy_loanrate_list = re.split(',', value)
-                elif (re.match('S\d', item)):
+                elif (re.match('S\d', item) or re.match("\S+Strategy", item)):
                     self.bid_strategy_strlist.append(value)
                 else:
                     print "Unrecognized/Ignored Config item: %s=%s" % (item, value)
@@ -72,7 +79,7 @@ if __name__ == '__main__':
     ppbao_config_file = None
     
     if (len(argv) == 1):
-        ppbao_config_file = "../conf/ppbao.config"
+        ppbao_config_file = "../conf/ppbao.me.config"
     elif (len(argv) == 2):
         me,ppbao_config_file = argv
     else:

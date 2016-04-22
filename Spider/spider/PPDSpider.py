@@ -38,7 +38,7 @@ class PPDSpider(object):
     '''!!! 20160320: Any Loan ask for more than this number will NOT be parsed !!!'''
     ''' Probably shall put into a slow thread which is just for logging purpose '''
     ''' An fast thread to only scan those with good education background '''
-    MAX_LOAN = 12000
+    MAX_LOAN = 15000
     
     login_url     = "https://ac.ppdai.com/User/Login?message=&Redirect="
     safe_page_url = 'http://invest.ppdai.com/loan/list_safe_s0_p5?Rate=0'
@@ -62,9 +62,10 @@ class PPDSpider(object):
         self.cookie_file = "ppdai_cookie.%s.txt" %(loginid) # File to store cookies to be used for all connections
         self.ppdlogin = PPDLogin(self.cookie_file)
         self.ppbao_config = ppbao_config
-        
-    def get_login_url(self):
-        return self.login_url
+    
+    @staticmethod
+    def get_login_url():
+        return PPDSpider.login_url
     
     def login(self,ppdloginid, ppdpasswd):
         try:
@@ -108,8 +109,9 @@ class PPDSpider(object):
             logging.info("Login to www.ppdai.com Successfully!!!")
             return (opener, ppduserid)
         except Exception, e:
-            sleep_time = random.randint(120,600)
+            sleep_time = random.randint(20,60)
             logging.error("Error: Encounter Exception %r on login to PPDAI. Sleep %d seconds before retry..." % (e, sleep_time))
+            sleep(sleep_time)
             
             ''' !!! This may cause Infinite Loop!!! '''
             return self.login_until_success(username, password)
@@ -145,31 +147,38 @@ class PPDSpider(object):
             return self.get_loanurllist_from_page_html(html_str)
         except HTTPError, e:
             logging.error("Failed to open page: %s - Reason: %r" %( loan_url, e))
-            return None
+            return (-1, None)
         except Exception,e:
             logging.error("Open Page to get loan list failed. URL: %s. Error: %r" %(loan_url, e))
-            return None
+            return (-1, None)
 
     def get_loanurllist_from_page_html(self, html_str):
         items    = re.findall(self.loanid_pattern, html_str)
+        skipped  = 0
         result_list = []
         for item in items:
             # 20160312: only search Loan with Xueli and Mobile certificates 
             ppdrate, loanurl, certs, loan_money_str = (item[0], item[1], item[2], item[3])
+            
             loanmoney = int(loan_money_str.replace(',',''))
             xueli_m = re.search(self.certs_xueli_pattern, certs)
             mobile_m = re.search(self.certs_mobile_pattern, certs)           
             #logging.debug("%s, %s, %s, %s" % (ppdrate, loanurl, title, certs))
+            
             if ((ppdrate in self.ppbao_config.strategy_ppdrate_list) == False):
                 logging.debug("Ignore Loan as ppdrate(%s) is not interested(Not in PPBao Config): %s" % (ppdrate, loanurl))
-            elif (xueli_m is None) and (mobile_m is None):
-                logging.debug("No Xueli and Mobile Cert!! Ignore loan %s" %(loanurl))
+                skipped += 1
+            elif (mobile_m is None): # (xueli_m is None) and 
+                # Ignore All Loans without mobile cert
+                logging.debug("No Mobile Cert!! Ignore loan %s" %(loanurl))
+                skipped += 1
             elif (loanmoney >= self.MAX_LOAN):
                 logging.debug("Ignore Loan as it ask for more than MAX_LOAN (%d>%d) - %s" % (loanmoney, self.MAX_LOAN, loanurl))
+                skipped += 1
             else:
                 result_list.append(loanurl)
                 
-        return result_list
+        return (skipped, result_list)
     
     def open_loan_detail_page(self, loanurl, referer_url):
         try:
@@ -252,23 +261,23 @@ class PPDSpider(object):
             loan_count = -1
             loanurl_list = []
             if m is not None:
-                loanurl_list = self.get_loanurllist_from_page_html(html_str)
+                skipped, loanurl_list = self.get_loanurllist_from_page_html(html_str)
                 loan_count = int(m.group(1))
                 if (loan_count == 0):
                     logging.info("0 Loans detected")
-                    return (0, 0,loanurl_list)
+                    return (0, 0,loanurl_list, 0)
                 elif (loan_count <= 10):
                     logging.debug("%d loans detected" % (loan_count))
-                    return (loan_count, 1,loanurl_list)
+                    return (loan_count, 1,loanurl_list, skipped)
                 else:
                     pass # Continue to check the pages
             
             m =  re.search(self.page_pattern, html_str)
             if m is not None:
-                return (loan_count, int(m.group(1)),loanurl_list)
+                return (loan_count, int(m.group(1)),loanurl_list, 0)
             else:
                 logging.error( "Not Match the Page Pattern.")
-                return (loan_count, -1,loanurl_list)
+                return (loan_count, -1,loanurl_list, 0)
         except HTTPError, e:
             logging.error("Failed to get pages. Ignore and Continue,but do Check it: HTTPError: %r" %(e))
             return (0,0,[])

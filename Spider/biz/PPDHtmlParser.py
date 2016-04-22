@@ -45,6 +45,8 @@ class PPDHtmlParser(object):
     ren_hang_trust_cert_pattern = re.compile("<i class='renbankcredit'></i>人行征信认证")
     shebao_gjj_cert_pattern = re.compile("社保公积金")
     zhifubao_cert_pattern = re.compile("支付宝账户信息")
+    student_cert_pattern = re.compile("学生证或一卡通正反面")
+    driver_cert_pattern = re.compile("机动车行驶证")
     
     # PPDRate, UserId, money, loanrate, maturity, datetime
     pattern_history_loan2 = re.compile('<a href="http://help.ppdai.com/Home/List/12" target="_blank" class="altQust">.*?'
@@ -57,8 +59,10 @@ class PPDHtmlParser(object):
     
     ''' TBD: Filter the history Loan detail (Rate and Money) and use that in BidStrategy 
     - We shall not bid any loan that has history Loan Rate as 30% or 36% '''
-    pattern_history_loan = re.compile('<p>历史借款</p>.*?<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?<td>.*?', re.S)
+    pattern_all_history_loan = re.compile('<p>历史借款</p>.*?<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?</tr>(.*?)</table>', re.S);
+    pattern_history_loan = re.compile('<tr>\s+<td>\s+(\d+).*?</td>.*?<td style="text-align: left">\s+<a href=".*?</a>\s+</td>\s+?<td>\s+?(\S+)%\s+?</td>\s+<td>.*?&#165;(\S+?)\s+</td>\s+<td>\s+(\S+?)\s+</td>\s+<td>\s+?(\S+)\s+?</td>\s+</tr>', re.S)
 
+    pattern_history_loandetail_chart = re.compile("name: '负债曲线',\s+data: \[\s+(.*?)\s+\]\s+\}", re.S)
     
     def __init__(self):
         '''
@@ -143,7 +147,7 @@ class PPDHtmlParser(object):
             title = titlem.group(1)
         else:
             title = "NA"
-        ppdloan.loantitle = title
+        ppdloan.set_loantitle(title)
         
         " 20160306: Set Other Certificates "
         ppduser.job_cert = 1 if re.search(self.job_cert_pattern, html) else 0        
@@ -155,30 +159,57 @@ class PPDHtmlParser(object):
         ppduser.bank_details_cert = 1 if re.search(self.benk_detail_pattern, html) else 0
         ppduser.getihu_cert = 1 if (re.search(self.getihu_pattern, html)) else 0
         ppduser.alipay_cert = 1 if re.search(self.zhifubao_cert_pattern, html) else 0
+        ppduser.student_cert = 1 if re.search(self.student_cert_pattern, html) else 0
+        ppduser.driver_cert = 1 if re.search(self.driver_cert_pattern, html) else 0
+        
+        (IfHas30or36RateLoan, IfHasLessThan1000Loan) = self.check_history_loan(ppdloan, html)
+        ppdloan.has_30or36rate_loan_history = 1 if IfHas30or36RateLoan == True else 0
+        ppdloan.has_lt1000_loan_history = 1 if IfHasLessThan1000Loan == True else 0
+        
+        " Parse History Total Loans "
+        m2 = re.search(self.pattern_history_loandetail_chart, html)
+        if (m2 is not None):
+            history_total_loan_slist = re.findall('(\S+?),\s+', m2.group(1))
+            flist = []
+            for ts in history_total_loan_slist:
+                flist.append(float(ts))
+            ppdloan.history_highest_total_loan = max(flist)
+        else:
+            ''' means not able to get the history high '''
+            ppdloan.history_highest_total_loan = 0 if ppdloan.history_total_loan == 0 else -1
         return (ppdloan,ppduser,mymoney)
     
 
-    def parse_history_loan_html(self, loanid, html):
+    def check_history_loan(self, ppdloan, html):
         '''
         Parse History loan Detail page content to get the loan details in PPDLoan / PPDUser data structure
         Return: Notice we'll only get very limited information with the history loan page
+        Return: IfHas30or36RateLoan, IfHasLessThan1000Loan
         '''
 
-        m = re.search(self.pattern_history_loan, html)
+        m = re.search(self.pattern_all_history_loan, html)
+        IfHas30or36RateLoan = False
+        IfHasLessThan1000Loan = False
         if (m is None):
-            logging.error("Not able to parse History Loan %d" % (loanid))
-            return None
-        
-        '<div class="newbidstatus_lb">投标已结束</div>'
-        ppdrate, userid, money, loanrate, maturity, datetime = m.groups()
-        money = int(money.replace(',',''))
-        maturity = int(maturity)
-        loanrate = float(loanrate)
-        year,month,day = re.split('/', datetime)
-        dt = datetime(year,month, day, 12, 0, 0)
-        age = 0
-        
-        ppdloan = PPDLoan({'loanid':loanid, 'datetime':dt, 'loanrate':loanrate, 'ppdrate':ppdrate, \
-                           'money':money, 'maturity':maturity, 'userid':userid, 'age': age})
-        return ppdloan
+            if ppdloan.history_total_loan != 0:
+                logging.warn("No able to parse History Loan for %d." % (ppdloan.loanid))
+            return (IfHas30or36RateLoan, IfHasLessThan1000Loan)
+        history_loans_html = m.group(1)
+        #print html
+        items = re.findall(self.pattern_history_loan, history_loans_html)
+        for item in items:
+            #9873318 8.02 9,000 成功 2016/3/19
+            #9870912 7.12 6,000 已撤回 2016/3/19
+            lid, lrate, lmoney, lstatus, ldate = item[0],item[1], item[2], item[3], item[4];
+            lid = int(lid)
+            lrate = float(lrate)
+            lmoney = int(lmoney.replace(',', ''))
+            lyear, lmonth, lday = re.split('/', ldate)
+            ''' TO BE Enhanced '''
+            if lrate >= 30:
+                IfHas30or36RateLoan = True
+            if lmoney < 1000:
+                IfHasLessThan1000Loan = True
+                
+        return (IfHas30or36RateLoan, IfHasLessThan1000Loan)
                 

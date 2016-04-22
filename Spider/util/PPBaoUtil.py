@@ -9,6 +9,8 @@ import gzip
 from StringIO import StringIO
 import logging
 import re
+from datetime import date
+import os
 
 class PPBaoUtil(object):
     '''
@@ -24,6 +26,27 @@ class PPBaoUtil(object):
         pass
     
     @staticmethod
+    def init_logging(ppdid, logdir):
+        today = date.today().isoformat()
+        logfile = "%s/ppbao.%s.%s.log" % (logdir, ppdid, today)
+        i = 1
+        while os.path.exists(logfile):
+            logfile = "%s/ppbao.%s.%s.%d.log" % (logdir, ppdid, today, i)
+            i += 1
+        logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                    datefmt='%a, %d %b %Y %H:%M:%S',
+                    filename=logfile,
+                    filemode='a')
+        #定义一个StreamHandler，将INFO级别或更高的日志信息打印到标准错误，并将其添加到当前的日志处理对象#
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        
+        formatter = logging.Formatter('%(asctime)s %(levelname)-4s %(message)s')
+        console.setFormatter(formatter)
+        logging.getLogger('').addHandler(console)
+    
+    @staticmethod
     def set_university_to_rank(university_to_rank):
         PPBaoUtil.university_to_rank = university_to_rank
     
@@ -33,9 +56,9 @@ class PPBaoUtil(object):
         # Notice this method shall only be called after set_univeristy_to_rank
         if (ppdloan.ppduser.education_university == 'NULL'):
             return -2 # None
-        elif (ppdloan.ppduser.education_type != '普通' and ppdloan.ppduser.education_type != '研究生'):
+        elif (ppdloan.ppduser.education_type != '普通' and ppdloan.ppduser.education_type != '研究生' and ppdloan.ppduser.education_type != ''):
             return -3 # means 夜大，函授，自考，成人
-        elif ppdloan.ppduser.education_level == '专科':
+        elif ppdloan.ppduser.education_level == '专科' or ppdloan.ppduser.education_level == '专科(高职)':
             return -1 # 专科
         university = ppdloan.ppduser.education_university
         university = unicode(university)
@@ -50,7 +73,7 @@ class PPBaoUtil(object):
                 if uni in PPBaoUtil.university_to_rank.keys():
                     rank = PPBaoUtil.university_to_rank[uni]
                     ''' 20160324: Limit this to top 10 university as  they have very high quality independent college '''  
-                    if rank <= 10:
+                    if rank <= 3:
                         return rank;
                     else:
                         logging.debug("Ignore Independent College for now as it's not top 10: %s,Rank %d" % (university, rank))

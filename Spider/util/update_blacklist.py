@@ -8,8 +8,6 @@ Created on 2016年3月20日
 from ds.PPDBlackLoan import PPDBlackLoan
 from spider.PPDBlacklist import PPDBlacklist
 from sys import argv
-import os
-import re
 import logging
 from spider.PPDSpider import PPDSpider
 from dao.PPDDAO import PPDDAO
@@ -17,69 +15,26 @@ from dao.PPBaoUserDAO import PPBaoUserDAO
 from dao.BlackListDAO import BlackListDAO
 from datetime import date
 from datetime import timedelta
-
-
-
-def init_logging(ppdid):
-    today = date.today().isoformat()
-    logfile = "D:/ppdai/ppbao-test.%s.%s.log" % (ppdid, today)
-    i = 1
-    while os.path.exists(logfile):
-        logfile = "D:/ppdai/ppbao.%s.%s.%d.log" % (ppdid, today, i)
-        i += 1
-    logging.basicConfig(level=logging.DEBUG,
-                format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                datefmt='%a, %d %b %Y %H:%M:%S',
-                filename=logfile,
-                filemode='a')
-    #定义一个StreamHandler，将INFO级别或更高的日志信息打印到标准错误，并将其添加到当前的日志处理对象#
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)-4s %(message)s')
-    console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
-
-'''
-PPBao_DBHost=localhost
-PPBao_DBUser=
-PPBao_DBPassword=
-PPBAO_DBName=ppbao
-'''
-def read_ppbao_config(ppbao_config):
-    fh = file(ppbao_config,'r')
-    ppdloginid,dbhost,dbuser,dbpwd,dbname = (None,None,None,None,None)
-    for line in fh:
-        line = line.rstrip()
-        item,value = re.split('=', line)
-        if (item == 'PPDUser'):
-            ppdloginid = value
-        elif (item == 'PPBao_DBHost'):
-            dbhost = value
-        elif (item == 'PPBao_DBUser'):
-            dbuser = value
-        elif (item == 'PPBao_DBPassword'):
-            dbpwd = value
-        elif (item == 'PPBAO_DBName'):
-            dbname = value
-        else:
-            print "Unrecognized Config item: %s=%s" % (item, value)
-    return (ppdloginid,dbhost,dbuser,dbpwd,dbname)
+from util.PPBaoConfig import PPBaoConfig
+from util.PPBaoUtil import PPBaoUtil
 
 def init_ppbao(argv):
 
-    ppbao_config = None
+    ppbao_config_file = None
     if (len(argv) == 1):
-        ppbao_config = "ppbao.config"
+        #ppbao_config_file = "../conf/ppbao.18616856236.config"
+        ppbao_config_file = "../conf/ppbao.18616027065.config"
     elif (len(argv) == 2):
-        me,ppbao_config = argv
+        me,ppbao_config_file = argv
     else:
         print "Error: More than 1 argument is provided!"
         print "Usage: python update_blacklist.py <ppbao_config_file>"
         exit (-1)
 
     # Initialize
-    ppdloginid,dbhost,dbuser,dbpwd,dbname = read_ppbao_config(ppbao_config)
-    init_logging(ppdloginid)
+    ppbao_config = PPBaoConfig(ppbao_config_file)
+    ppdloginid,dbhost,dbuser,dbpwd,dbname = ppbao_config.read_ppbao_config()
+    PPBaoUtil.init_logging(ppdloginid,ppbao_config.logdir)
     logging.info("Welcome to PPBao System - Update BlackList Utility!")
     logging.info("Developed By Xiaoqi Ouyang. All Rights Reserved@2016-2017")
     logging.info("PPBao Config: %s,%s,%s,%s,%s" % (ppdloginid,dbhost,dbuser,dbpwd,dbname))
@@ -111,7 +66,7 @@ def init_ppbao(argv):
 if __name__ == '__main__':
     (ppduserid, spider, blacklistdao) = init_ppbao(argv)
     blacklist_worker = PPDBlacklist(spider)
-    blacklists = blacklist_worker.get_blacklist(1)
+    blacklists = blacklist_worker.get_blacklist()
     today = date.today()
     for blackloan in blacklists:
         if (isinstance(blackloan, PPDBlackLoan) is False):
@@ -124,6 +79,14 @@ if __name__ == '__main__':
         blackloan.overdue_date = overdue_date;
         logging.info("Black List: " + blackloan.get_summary()) 
     blacklistdao.update_blacklist(ppduserid, blacklists)
-    logging.info("All blacklist are updated/inserted into DB now!!")
+    logging.info("All Blacklist Info have been updated/inserted into DB now!!")
+    
+    myprofit = blacklist_worker.get_myprofit(today, ppduserid)
+    logging.info("Profit Summary:" + myprofit.get_summary())
+    blacklistdao.update_myprofit(myprofit)
+    logging.info("Profit Info has been updated into DB.")
+    
+    
+    
         
         

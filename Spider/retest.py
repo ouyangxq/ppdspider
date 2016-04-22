@@ -6,7 +6,9 @@ A script to test RE for unicode (GBK)
 '''
 
 import re
-
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 gbkstring = '''
  <h3>拍拍贷统计信息</h3>
@@ -131,3 +133,100 @@ if __name__ == '__main__':
         print "Matched: %s" % (m.group(1))
     else:
         print university
+        
+    pattern_all_history_loan = re.compile('<p>历史借款</p>.*?<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?</tr>(.*?)</table>', re.S);
+    pattern_history_loan = re.compile('<tr>\s+<td>\s+(\d+).*?</td>.*?<td style="text-align: left">\s+<a href=".*?</a>\s+</td>\s+?<td>\s+?(\S+)%\s+?</td>\s+<td>.*?&#165;(\S+?)\s+</td>\s+<td>\s+(\S+?)\s+</td>\s+<td>\s+?(\S+)\s+?</td>\s+</tr>', re.S)
+    #                     + '<td>.*?(\d+/\d+/\d+).*?</td></tr>', re.S)
+    #pattern_history_loan = re.compile('<tr>.*?<td>.*?(\d+).*?</td>.*?<td style="text-align: left">.*?<a href=".*?</a>.*?</td>.*?'
+    #                     + '<td>\s+?(\S+)%\s+?</td>.*?<td>.*?&#165;(\S+?).*?</td>.*?<td>.*?(\S+?).*?</td>.*?'
+    #                     + '<td>\s+?(\d+/\d+/\d+).*?</td></tr>', re.S)
+    loan_history_html = '''
+                        <p>历史借款</p>
+                        <table class="lendDetailTab_tabContent_table1">
+                            <tr>
+                                <th>列表ID</th>
+                                <th>标题</th>
+                                <th>利率</th>
+                                <th>金额</th>
+                                <th>状态</th>
+                                <th>已发布</th>
+                            </tr>
+                                <tr>
+                                    <td>
+                                        9873318
+                                    </td>
+                                    <td style="text-align: left">
+                                        <a href="/loan/info?id=9873318" target="_blank">pdu2517233537的应收款安全标</a>
+                                    </td>
+                                    <td>
+                                        8.02%
+                                    </td>
+                                    <td>
+                                        &#165;9,000
+                                    </td>
+                                    <td>
+
+                                        成功
+                                    </td>
+                                    <td>
+                                        2016/3/19
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        9870912
+                                    </td>
+                                    <td style="text-align: left">
+                                        <a href="/loan/info?id=9870912" target="_blank">pdu2517233537的应收款安全标</a>
+                                    </td>
+                                    <td>
+                                        7.12%
+                                    </td>
+                                    <td>
+                                        &#165;6,000
+                                    </td>
+                                    <td>
+
+                                        已撤回
+                                    </td>
+                                    <td>
+                                        2016/3/19
+                                    </td>
+                                </tr>
+                        </table>
+'''
+    m = re.search(pattern_all_history_loan, loan_history_html)
+    if m is not None:
+        print "L1 Matched!!!"
+        html = m.group(1)
+        #print html
+        items = re.findall(pattern_history_loan, html)
+        for item in items:
+            print item[0],item[1], item[2], item[3], item[4];
+    else:
+        print "NOT Matched!!"
+        
+    fuzai = '''name: '负债曲线',
+                                            data: [                                                          2774.2100, 
+                                                         2544.2900, 
+                                                         5544.2900, 
+                                                         5316.3900, 
+                                                         5082.2500, 
+                                                         13582.2500, 
+                                                         10810.1500, 
+                                                         8500.0000, 
+                                                         7854.2700, 
+                                                         7197.7800, 
+                                                         9997.7800, 
+ ]
+                                        }
+    '''
+    pattern_history_loandetail_chart = re.compile("name: '负债曲线',\s+data: \[\s+(.*?)\s+\]\s+\}", re.S)
+    m2 = re.search(pattern_history_loandetail_chart, fuzai)
+    if (m2 is not None):
+        m3 = re.findall('(\S+?),\s+', m2.group(1))
+        for item in m3:
+            print item
+    else:
+        print "FuZAi - not matched!"
+    

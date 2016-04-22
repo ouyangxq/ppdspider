@@ -28,7 +28,7 @@ class PPDBlackLoan(object):
         '''
     def get_summary(self):
         
-        summary = "%d,\"%s\",\"%s\",\"%s\",%d,%4.2f,%4.2f,%d,%d)" % (self.loanid, self.loan_title, \
+        summary = "%d,\"%s\",\"%s\",\"%s\",%d,%4.2f,%4.2f,%d,%d" % (self.loanid, self.loan_title, \
                   self.ppbaouserid, self.loanuserid, self.bid_money, self.returned_money, self.overdue_money, self.overdue_days, \
                   self.history_max_overdue_days)
         if self.overdue_date is not None and self.overdue_date != 'None':
@@ -36,7 +36,7 @@ class PPDBlackLoan(object):
             summary += ",%s" % (sql_date)
         return summary
     
-    def get_db_insert_statement(self):
+    def get_sql_insert_statement(self):
         sql_date = self.overdue_date.isoformat()
         db_stat = "insert into blacklist (loanid, ppbaouserid, loanuserid, loantitle, bid_money, returned_money, overdue_money,overdue_days,history_max_overdue_days, overdue_date) values (%d,\"%s\",\"%s\",\"%s\",%d,%4.2f,%4.2f,%d,%d,\"%s\")" % (self.loanid, \
                   self.ppbaouserid, self.loanuserid, self.loan_title, self.bid_money, self.returned_money, self.overdue_money, self.overdue_days, \
