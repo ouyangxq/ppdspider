@@ -22,8 +22,8 @@ def init_ppbao(argv):
 
     ppbao_config_file = None
     if (len(argv) == 1):
-        #ppbao_config_file = "../conf/ppbao.18616856236.config"
-        ppbao_config_file = "../conf/ppbao.18616027065.config"
+        ppbao_config_file = "../conf/ppbao.18616856236.config"
+        #ppbao_config_file = "../conf/ppbao.18616027065.config"
     elif (len(argv) == 2):
         me,ppbao_config_file = argv
     else:
@@ -66,7 +66,7 @@ def init_ppbao(argv):
 if __name__ == '__main__':
     (ppduserid, spider, blacklistdao) = init_ppbao(argv)
     blacklist_worker = PPDBlacklist(spider)
-    blacklists = blacklist_worker.get_blacklist()
+    blacklists = blacklist_worker.get_blacklist(ppduserid)
     today = date.today()
     for blackloan in blacklists:
         if (isinstance(blackloan, PPDBlackLoan) is False):
@@ -82,9 +82,9 @@ if __name__ == '__main__':
     logging.info("All Blacklist Info have been updated/inserted into DB now!!")
     
     myprofit = blacklist_worker.get_myprofit(today, ppduserid)
-    logging.info("Profit Summary:" + myprofit.get_summary())
+    logging.info("Profits Summary:" + myprofit.get_summary())
     blacklistdao.update_myprofit(myprofit)
-    logging.info("Profit Info has been updated into DB.")
+    logging.info("Profits Info has been updated into DB.")
     
     
     

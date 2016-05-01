@@ -102,9 +102,9 @@ def get_monthly_pay(money, mrate, month):
 # MAIN FUNCTION
 if __name__ == '__main__':
     #print "Rate,BidMoney,Month,MonthlyPay,JieDuan,Actual,BestBid"
-    for rate in (24,):
-        for month in (12,):
-            for money in (50, 51, 52, 53,54, 55, 60, 160, 170):
+    for rate in (11,):
+        for month in (15,):
+            for money in (50, 51, 52, 53,54, 55, 60, 155, 160, 165, 170):
                 best_bid = money
                 best_jieduan = 0.01
                 for rmoney in range(money, money+5):

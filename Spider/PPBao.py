@@ -14,11 +14,15 @@ from dao.PPDUserDAO import PPDUserDAO
 from dao.UniversityDAO import UniversityDAO
 from dao.MyBidDAO import MyBidDAO
 from dao.PPBaoUserDAO import PPBaoUserDAO
+from dao.BlackListDAO import BlackListDAO
+from spider.PPDBlacklist import PPDBlacklist
 from spider.PPDSpider import PPDSpider
 from biz.AutoBid import AutoBid
 from util.PPBaoUtil import PPBaoUtil
 import logging
 from datetime import datetime
+from datetime import date
+from datetime import timedelta
 from time import sleep
 import random
 import traceback
@@ -90,6 +94,7 @@ class PPBao(object):
         self.loandao = PPDLoanDAO(self.ppddao)
         self.userdao = PPDUserDAO(self.ppddao)
         self.mybiddao = MyBidDAO(self.ppddao)
+        self.blacklistdao = BlackListDAO(self.ppddao)
         university_to_rank = UniversityDAO(self.ppddao).get_university_ranks()
         if university_to_rank is None:
             logging.error("Error: Not able to query DB to get University Information. Exiting now")
@@ -112,7 +117,7 @@ class PPBao(object):
             sleep(random.randint(2,6))
     
     def run(self):
-        rd  = 0  # Round
+        rd  = 1  # Round
         error_count = 0 # This record down how many errors we have during the run.
         last_url    = PPDSpider.get_login_url()  # This is used to record the last URL to use as Referer
         mybid_list  = [] # mybid list
@@ -140,7 +145,7 @@ class PPBao(object):
                         error_count += 5;
                         continue;
                     else:
-                        logging.info("****** Round %d ****** Total Loans: %d (%d pages). Checking..." % (rd+1, count, pages))
+                        logging.info("****** Round %d ****** Total Loans: %d (%d pages). Checking..." % (rd, count, pages))
                         sleep(random.randint(1,2))
     
                     ''' Notice range (1,2) will only returns 1, so need pages +1 '''
@@ -244,20 +249,23 @@ class PPBao(object):
                                     sleep(random.randint(1,3))
                         sleep(random.randint(1,4))
                     # End of parsing all the pages
-                    # Reset loanids_in_memory as we don't need to keep history old loanids. 
-                    ''' Seems there is a BUG which will cause duplicate BIDs if we reset loanids in memory everytime'''
-                    ''' Probably caused by ppdai not stable caused it read the page url fail and miss some Loans '''
-                    ''' Solution is to only reset on Round 1!!! '''
-                    if (rd == 1 and len(loanids_in_this_round) > 1):
-                        loanids_in_memory = loanids_in_this_round
                     logging.info("Parsed %d loans: new_loans(%d), old_loans(%d), skipped_loans(%d)" % (len(loanids_in_this_round), new_loans, old_loans, skipped_loans))
                 except Exception, e:
                     error_count += 1
                     logging.error("Un-Caught Error!!! Continue with next round - Please do Check IT!! %r" %(e))
                     traceback.print_exc()
                     sleep(random.randint(6,12))
-                
-            rd += 1
+            
+                                # Reset loanids_in_memory as we don't need to keep history old loanids. 
+            ''' Seems there is a BUG which will cause duplicate BIDs if we reset loanids in memory everytime'''
+            ''' Probably caused by ppdai not stable caused it read the page url fail and miss some Loans '''
+            ''' Solution is to only reset on Round 1!!! '''
+            if (rd == 1 and len(loanids_in_this_round) > 1):
+                loanids_in_memory = loanids_in_this_round
+            if (rd == 1 or (rd % 400 == 0)):
+                sleep(1)
+                logging.info("Updating Black List...")
+                self.update_black_list()
             if (rd % 20 == 0):
                 rdint = random.randint(20,60) # Sleep more time on every 20 round.
             elif (rd % 100 == 0):
@@ -267,8 +275,32 @@ class PPBao(object):
             else:
                 rdint = random.randint(6,20)
             logging.info("****** Done Round %d ****** Sleep for %d seconds before next run." % (rd, rdint))
+            rd += 1
             sleep(rdint)
         # End of while(1)
+    
+    def update_black_list(self):
+        today = date.today()
+        for ppdid in self.ppdloginids:
+            ppduserid   = self.ppdid_to_userid[ppdid]
+            spider      = self.ppdid_to_spider[ppdid]
+            logging.info("Checking black list for %s ..." % (ppduserid))
+            blacklist_worker = PPDBlacklist(spider)
+            blacklists = blacklist_worker.get_blacklist(ppduserid)
+            for blackloan in blacklists:
+                blackloan.ppbaouserid = ppduserid
+                # Set Date
+                overdue_date = today + timedelta(days = (1-blackloan.overdue_days))
+                blackloan.overdue_date = overdue_date;
+                logging.info("Black List: " + blackloan.get_summary()) 
+            self.blacklistdao.update_blacklist(ppduserid, blacklists)
+            logging.info("All Blacklist Info have been updated/inserted into DB now!!")
+            
+            logging.info("Update Profit Summary for %s..." %(ppdid))
+            myprofit = blacklist_worker.get_myprofit(today, ppduserid)
+            logging.info("Profit Summary:" + myprofit.get_summary())
+            self.blacklistdao.update_myprofit(myprofit)
+            logging.info("Profit Info has been updated into DB.")
 # MAIN
 if __name__ == '__main__':
     '''
@@ -283,8 +315,9 @@ if __name__ == '__main__':
     4. Sleep an round time and continue with step 2
     '''
     
-    ppbao = PPBao(("conf/ppbao.18616856236.config","conf/ppbao.18616027065.config"))
-    #ppbao = PPBao(("conf/ppbao.18616856236.config",))
+    #ppbao = PPBao(("conf/ppbao.18616856236.config","conf/ppbao.18616027065.config"))
+    #ppbao = PPBao(("conf/ppbao.18616027065.config",))
+    ppbao = PPBao(("conf/ppbao.18616856236.config",))
     ppbao.init()
     ppbao.connect_to_ppdai()
     ppbao.run()

@@ -76,7 +76,8 @@ class PPBaoUtil(object):
                     if rank <= 3:
                         return rank;
                     else:
-                        logging.debug("Ignore Independent College for now as it's not top 10: %s,Rank %d" % (university, rank))
+                        #logging.debug("Ignore Independent College for now as it's not top 10: %s,Rank %d" % (university, rank))
+                        pass
             # For all other cases. return -1
             return -1
     

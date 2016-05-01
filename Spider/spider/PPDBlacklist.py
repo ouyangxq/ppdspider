@@ -90,10 +90,10 @@ class PPDBlacklist(object):
             return None
     
     " Get Black List " 
-    def get_blacklist(self):
+    def get_blacklist(self, ppbaouserid):
         html_str = self.open_blacklist_page(1)
         self.html_str = html_str # Only set this for Page 1
-        blacklist = PPDBlacklist.parse_blacklist(html_str)
+        blacklist = PPDBlacklist.parse_blacklist(html_str, ppbaouserid)
         
                     #exit (-1)
         m = re.search(self.page_pattern, html_str);
@@ -103,7 +103,7 @@ class PPDBlacklist(object):
             for pageindex in range(2, pages+1): # notice 
                 sleep(5)
                 html = self.open_blacklist_page(pageindex)
-                blist = PPDBlacklist.parse_blacklist(html)
+                blist = PPDBlacklist.parse_blacklist(html, ppbaouserid)
                 for ele in blist:
                     blacklist.append(ele)
         return blacklist;
@@ -128,7 +128,7 @@ class PPDBlacklist(object):
         return myprofit
     
     @staticmethod
-    def parse_blacklist(html):
+    def parse_blacklist(html, ppbaouserid):
         black_loans = re.findall(PPDBlacklist.blackloan_patter, html)
         black_loan_list = []
         for item in black_loans:
@@ -142,6 +142,7 @@ class PPDBlacklist(object):
             blackloan.overdue_days = int(overdue_days)
             blackloan.returned_money = float(returned_money)
             blackloan.overdue_money = float(overdued_money)
+            blackloan.ppbaouserid = ppbaouserid
             black_loan_list.append(blackloan)
             logging.info("Summary: " + blackloan.get_summary())
         logging.info("Find %d black loans" %(len(black_loan_list)))
