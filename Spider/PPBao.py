@@ -133,7 +133,7 @@ class PPBao(object):
             for risk in [spider.riskmiddle]: # 20160307: remove: spider.risksafe as I already bid more than 3000 for 12/12 Peibiao 
                 try: 
                     first_page_url = spider.build_loanpage_url(risk, 1)
-                    count, pages,firstpage_loanurl_list, skipped = spider.get_pages(first_page_url, last_url)
+                    count, pages,skipped, loanid_to_mobile, loanid_to_xueli = spider.get_pages(first_page_url, last_url)
                     last_url = first_page_url
                     old_loans, new_loans, skipped_loans = (0, 0, skipped) # to record how many old/new and skipped loans in this round
                     if count == 0:
@@ -153,29 +153,20 @@ class PPBao(object):
                         if (index > 1): 
                             pageurl = spider.build_loanpage_url(risk, index)
                             logging.debug("Open page url: %s" % (pageurl))
-                            skipped, loanurls = spider.get_loan_list_urls(pageurl,last_url)
+                            skipped, loanid_to_mobile, loanid_to_xueli = spider.get_loanid_list_from_listing_page(pageurl,last_url)
                             last_url = pageurl
-                            if (loanurls is None):
+                            if (loanid_to_xueli is None or loanid_to_mobile is None):
                                 error_count += 1
                                 st = random.randint(2,7)
-                                logging.error("Can't get loanurls. Error Count(%d). Ignore and Continue in %d seconds. Check it Later!" % (error_count, st))
+                                logging.error("Can't get loanids! Error Count(%d). Ignore and Continue in %d seconds. Check it Later!" % (error_count, st))
                                 sleep(st)
                                 continue
                             skipped_loans += skipped
                         else:
                             pageurl = spider.build_loanpage_url(risk, 1)
                             last_url = pageurl
-                            loanurls = firstpage_loanurl_list
-                            logging.debug(loanurls)
-                        for loanurl in loanurls: 
-                            loanid = spider.get_loanid_from_url(loanurl)
-                            if loanid is None:
-                                error_count += 1
-                                st = random.randint(1,5)
-                                logging.error("Not able to get loanid from %s.Continue in %d seconds." % (loanurl, st))
-                                sleep(st)
-                                continue
-                            
+                        for loanid in loanid_to_mobile.keys(): 
+                            loanurl = spider.get_loanurl_by_loanid(loanid)                            
                             loanids_in_this_round.append(loanid)
                             if (loanid in loanids_in_memory):
                                 logging.debug("Loanid %d is already in DB. Ignore." % (loanid))
@@ -195,7 +186,7 @@ class PPBao(object):
                                     continue
     
                                 now = datetime.now() # Record Down the current datetime
-                                ppdloan, ppduser, mymoney = self.ppd_parser.parse_loandetail_html(loanid, now, html)
+                                ppdloan, ppduser, mymoney = self.ppd_parser.parse_loandetail_html(loanid, now, html)                                
                                 if ppdloan == None:
                                     if mymoney == None: # if it's -1,then it's just we're too slow as the loan is 100% completed, no error.
                                         error_count += 2
@@ -203,6 +194,7 @@ class PPBao(object):
                                     sleep(random.randint(1,5))
                                     continue
                                 else:
+                                    ppduser.mobile_cert = loanid_to_mobile[loanid]
                                     self.ppdid_to_leftmoney[ppd_main_id] = mymoney
                                 for ppdid in self.ppdloginids:
                                     ppduserid     = self.ppdid_to_userid[ppdid]
@@ -234,7 +226,8 @@ class PPBao(object):
                                         sleep(random.randint(1,4))                                      
                                     else:
                                         if ppdid == ppd_main_id:
-                                            logging.info("%s: NoBid for %d: %s" %(ppduserid, loanid, reason))                                    
+                                            #logging.info("%s: NoBid: %d: %s" %(ppduserid, loanid, reason))
+                                            logging.info("NoBid: %d: %s" %(loanid, reason))
         
                                 # Write to MYSQL
                                 loanids_in_memory.append(loanid)
@@ -262,7 +255,7 @@ class PPBao(object):
             ''' Solution is to only reset on Round 1!!! '''
             if (rd == 1 and len(loanids_in_this_round) > 1):
                 loanids_in_memory = loanids_in_this_round
-            if (rd == 1 or (rd % 400 == 0)):
+            if (rd == 1 or (rd % 120 == 0)):
                 sleep(1)
                 logging.info("Updating Black List...")
                 self.update_black_list()
