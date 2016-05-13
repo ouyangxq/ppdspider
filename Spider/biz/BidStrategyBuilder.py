@@ -40,8 +40,9 @@ class BidStrategyBuilder(object):
     has_one_cert_list = []
     has_certs_list = []
     left_lend = -1
+    strategy_name = ""
 
-    def __init__(self, strategy_str):
+    def __init__(self, strategy_name, strategy_str):
         '''
         Constructor
         '''
@@ -49,7 +50,7 @@ class BidStrategyBuilder(object):
         ''' Bug&Fix: 20160323: Need to initialize in PPBao, otherwise, edu_level_list will contain every levels '''
         ''' 20160331: By Default, set them to accept 'any' so as to simplify the definition in ppbao.config '''
         self.ppdrate_list = ['A', 'B', 'C', 'D', 'E']
-        self.loanrate_list = [16, 17, 18, 19, 20, 21, 22, 23, 24]
+        self.loanrate_list = [18,19, 20, 21, 22, 23, 24]
         self.urank_start = -1
         self.urank_end = -1
         self.edu_level_list = ['博士研究生','硕士研究生','研究生及以上', '本科']
@@ -71,6 +72,7 @@ class BidStrategyBuilder(object):
         self.has_one_cert_list = []
         self.has_certs_list = []
         self.bid_money = -1
+        self.strategy_name = strategy_name
         self.strategy_str = strategy_str.decode('gbk').encode('utf8')
         self.build_bid_strategy_from_str()
         #print "AA: " + self.strategy_str
@@ -187,21 +189,21 @@ class BidStrategyBuilder(object):
                 actual_bid_money = self.bid_money
             elif (self.bidmoney_range_start != -1 and self.bidmoney_range_end != -1):
                 actual_bid_money = BestBidMoney.get_best_bid_money(ppdloan.loanrate, ppdloan.maturity, self.bidmoney_range_start, self.bidmoney_range_end)
-                logging.info("GetBestBidMoney: LoanRate(%d),Month(%d),bid_range(%d,%d) - BestBid: %d" %(ppdloan.loanrate, ppdloan.maturity, self.bidmoney_range_start, self.bidmoney_range_end, actual_bid_money))
+                #logging.info("GetBestBidMoney: LoanRate(%d),Month(%d),bid_range(%d,%d) - BestBid: %d" %(ppdloan.loanrate, ppdloan.maturity, self.bidmoney_range_start, self.bidmoney_range_end, actual_bid_money))
             else:
                 logging.warn("PPBaoConfig Error: No bid_money and bid_range defined!! NO BID!! Strategy: %s" % (self.strategy_str))
-                return (False, 0, "NoBid defined in Config: %s" % ppdloan.get_loan_summary)
-            logging.info("Strategy Matches! Bid %d for %d!\nPPDloan Summary: %s\nStrategy Matched: %s" % (actual_bid_money, ppdloan.loanid, ppdloan.get_loan_summary(), self.strategy_str))
-            return (True, actual_bid_money, ppdloan.get_loan_summary())
+                return (False, 0, "NoBid defined in Config: %s" % ppdloan.get_loan_summary, None)
+            logging.info("Strategy Matches! Bid %d for %d!\nPPDloan Summary: %s\nStrategy Matched: %s: %s" % (actual_bid_money, ppdloan.loanid, ppdloan.get_loan_summary(), self.strategy_name, self.strategy_str))
+            return (True, actual_bid_money, ppdloan.get_loan_summary(), self)
         else:
             #logging.info("No match from Strategy: %s" % (self.strategy_str))
-            return (False, 0, ppdloan.get_loan_summary())
+            return (False, 0, ppdloan.get_loan_summary(), None)
     
     def check_university_rank(self, ppdloan):
         ''' if university rank is <=n, return true, -1 means no check on university_rank '''
         if (self.urank_start == -1 and self.urank_end == -1):
             return True
-        rank = PPBaoUtil.get_university_rank(ppdloan)
+        rank = PPBaoUtil.get_university_rank(ppdloan.ppduser)
         if rank >= self.urank_start and rank <= self.urank_end:
             return True 
         else:
@@ -275,9 +277,9 @@ class BidStrategyBuilder(object):
         return True if diff >= self.lt_history_max_loan else False
     
     def check_certificates(self, ppdloan):
-        if (len(self.has_one_cert_list) == 0 and len(self.has_certs_list) == 0):
-            return True
-        '''To be implemented '''
+        return self.check_has_one_cert(ppdloan) and self.check_has_certs(ppdloan)
+                    
+    def check_has_one_cert(self, ppdloan): 
         if len(self.has_one_cert_list) > 0:
             for cert in self.has_one_cert_list:
                 # (学生证,支付宝,户口,银行流水,工作,社保);
@@ -288,11 +290,15 @@ class BidStrategyBuilder(object):
                     (cert == '工作' and ppdloan.ppduser.shebao_gjj_cert == 1) or
                     (cert == '收入' and ppdloan.ppduser.shebao_gjj_cert == 1) or
                     (cert == '征信' and ppdloan.ppduser.shebao_gjj_cert == 1) or
+                    (cert == '手机' and ppdloan.ppduser.mobile_cert == 1) or
                     (cert == '学生证' and ppdloan.ppduser.student_cert == 1)):
                     return True
             #　if reaches here, then no certificate matched
             return False
-        elif len(self.has_certs_list) > 0:
+        return True
+    
+    def check_has_certs(self, ppdloan):
+        if len(self.has_certs_list) > 0:
             for cert in self.has_certs_list:
                 if ((cert == '银行流水' and ppdloan.ppduser.bank_details_cert == 0) or
                     (cert == '支付宝' and ppdloan.ppduser.alipay_cert == 0) or
@@ -301,11 +307,12 @@ class BidStrategyBuilder(object):
                     (cert == '工作' and ppdloan.ppduser.shebao_gjj_cert == 0) or
                     (cert == '收入' and ppdloan.ppduser.shebao_gjj_cert == 0) or
                     (cert == '征信' and ppdloan.ppduser.shebao_gjj_cert == 0) or
-                    (cert == '学生证' and ppdloan.ppduser.student_cert == 0)):
+                    (cert == '学生证' and ppdloan.ppduser.student_cert == 0) or
+                    (cert == '手机' and ppdloan.ppduser.mobile_cert == 0) or
+                    (cert == '身份证' and ppdloan.ppduser.idcard_cert == 0)):
                     return False
             # If reaches here, means all are matched.
             return True
         else:
             return True
-                    
                     
