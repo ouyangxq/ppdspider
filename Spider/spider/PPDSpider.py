@@ -38,7 +38,9 @@ class PPDSpider(object):
     '''!!! 20160320: Any Loan ask for more than this number will NOT be parsed !!!'''
     ''' Probably shall put into a slow thread which is just for logging purpose '''
     ''' An fast thread to only scan those with good education background '''
-    MAX_LOAN = 15000
+    MAX_LOAN = 20000
+    
+    #mobile_certs
     
     login_url     = "https://ac.ppdai.com/User/Login?message=&Redirect="
     safe_page_url = 'http://invest.ppdai.com/loan/list_safe_s0_p5?Rate=0'
@@ -47,9 +49,8 @@ class PPDSpider(object):
     loanid_url_pattern = re.compile('.*info\?id=(\d+)')
     loanid_rul_pattern2 = re.compile("http://www.ppdai.com/list/(\d+)")
     ''' loanid_pattern: PPDRate, LoanURL, Title, Certs '''
-    # Change rank="4" to rank="\d" as that's made PPBao only select C biao!!
     loanid_pattern  = re.compile('<a href="http://help.ppdai.com/Home/List/12" target="_blank" rank="\d">.*?<i class="creditRating (\S+?)" title=.*?'
-                                 + '<div class="w230 listtitle">.*?<a class="title ell" target="_blank" href="(.*?)" title=".*?">.*?</a>' 
+                                 + '<div class="w230 listtitle">.*?<a class="title ell" target="_blank" href="http://invest.ppdai.com/loan/info\?id=(\d+?)" title=".*?">.*?</a>' 
                                  + '.*?</div>.*?<div class="w90 cert" id="cert">(.*?)</div>.*?<div class="w110 brate".*?<span>%</span>.*?'
                                  + '<div class="w90 sum"> <span>&yen;</span>(\S+?)\s*?</div>', re.S)
     loan_count_pattern = re.compile('<span class="fr">共找到 <em class="cfe8e01">(\d+)</em> 个标的</span>', re.S)
@@ -75,8 +76,6 @@ class PPDSpider(object):
             logging.info("LOGIN!!")
             self.ppdlogin.login(ppdloginid,ppdpasswd, opener)
             self.ppdlogin.print_cookie(cookie)
-            logging.info("Open Lend Page!!")
-            self.ppdlogin.open_lend(opener)
             #Login2.print_cookie(cookie)
             self.opener = opener
             self.cookie = cookie
@@ -86,13 +85,17 @@ class PPDSpider(object):
                 if (item.name == 'ppd_uname'):
                     ppduserid = item.value
                     logging.info("PPD Username: %s" % (ppduserid))
+            # Try to open Lend page, but ignore if it's success or not.
+            logging.info("Open Lend Page!!")
+            self.ppdlogin.open_lend(opener)
             return (opener, ppduserid)
         except urllib2.URLError, e:
             logging.error("URLError: Not Able to Login to PPDAI! - Error: %r" % (e))
             return (None, None)
-        except urllib2.HTTPError, e:
-            logging.error("HTTPError: Not Able to login to PPDAI!- Error: %d" % (e.code))
+        except Exception, e:
+            logging.error("Exception: Not Able to login to PPDAI!- Error: %r" % (e))
             return (None, None)
+        
     
     def login_until_success(self,username, password):
         try: 
@@ -100,7 +103,7 @@ class PPDSpider(object):
             count = 0
             while opener == None:
                 count += 1;
-                sleep_time = random.randint(20,60)
+                sleep_time = random.randint(30,90)
                 if (count % 10 == 0):
                     sleep_time = random.randint(120,300)
                 logging.error("Error: Not able to login to PPDAI(www.ppdai.com). Retry in %d seconds! RetryCount(%d)" %(sleep_time, count))
@@ -120,16 +123,19 @@ class PPDSpider(object):
     def build_loanpage_url(self, risktype, pageindex):
         if (risktype == self.risksafe):
             ''' sort by Interest Rate '''
-            url = "http://invest.ppdai.com/loan/list_Safe_s3_p%d?monthgroup=&rate=0&didibid=&listingispay=" % (pageindex)
+            url = "http://invest.ppdai.com/loan/list_safe_s5_p%d?Rate=0" % (pageindex)
         elif risktype == self.riskmiddle:
             ''' Sort by PPDai Rate '''
-            url = "http://invest.ppdai.com/loan/list_RiskMiddle_s5_p%d?monthgroup=&rate=0&didibid=&listingispay=" % (pageindex)
+            url = "http://invest.ppdai.com/loan/list_riskmiddle_s5_p%d?Rate=0" % (pageindex)
         else:
-            url = "http://invest.ppdai.com/loan/list_RiskHigh_s5_p%d?monthgroup=&rate=0&didibid=&listingispay=" % (pageindex)
+            url = "http://invest.ppdai.com/loan/list_riskhigh_s5_p%d?Rate=0" % (pageindex)
         return url
     
+    # Instead of find the loanurls, use loanid to build loanurl and pass between functions is more convenient.
+    def get_loanurl_by_loanid(self, loanid):
+        return "http://invest.ppdai.com/loan/info?id=%d" % (loanid)
     
-    def get_loan_list_urls (self, loan_url, referer_url):
+    def get_loanid_list_from_listing_page (self, loan_url, referer_url):
         " This function is to analsysis the Loan List page and return a list of links point to the detailed loan info page"
         try:
             self.opener.addheaders = [('User-Agent','Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.73 Safari/537.36')]
@@ -144,41 +150,34 @@ class PPDSpider(object):
             response = self.opener.open(loan_url,None,15)
             html_str = PPBaoUtil.get_html_from_response(response)
             response.close()
-            return self.get_loanurllist_from_page_html(html_str)
+            return self.get_loaid_list_from_page_html(html_str)
         except HTTPError, e:
             logging.error("Failed to open page: %s - Reason: %r" %( loan_url, e))
-            return (-1, None)
+            return (-1, None, None)
         except Exception,e:
             logging.error("Open Page to get loan list failed. URL: %s. Error: %r" %(loan_url, e))
-            return (-1, None)
+            return (-1, None, None)
 
-    def get_loanurllist_from_page_html(self, html_str):
+    def get_loaid_list_from_page_html(self, html_str):
         items    = re.findall(self.loanid_pattern, html_str)
         skipped  = 0
-        result_list = []
+        loanid_to_mobile = {}
+        loanid_to_xueli  = {}
+
         for item in items:
             # 20160312: only search Loan with Xueli and Mobile certificates 
-            ppdrate, loanurl, certs, loan_money_str = (item[0], item[1], item[2], item[3])
+            ppdrate, loanid, certs, loan_money_str = (item[0], item[1], item[2], item[3])
+            loanid = int(loanid)
             
-            loanmoney = int(loan_money_str.replace(',',''))
+            #loanmoney = int(loan_money_str.replace(',',''))
             xueli_m = re.search(self.certs_xueli_pattern, certs)
             mobile_m = re.search(self.certs_mobile_pattern, certs)           
             #logging.debug("%s, %s, %s, %s" % (ppdrate, loanurl, title, certs))
-            
-            if ((ppdrate in self.ppbao_config.strategy_ppdrate_list) == False):
-                logging.debug("Ignore Loan as ppdrate(%s) is not interested(Not in PPBao Config): %s" % (ppdrate, loanurl))
-                skipped += 1
-            elif (mobile_m is None): # (xueli_m is None) and 
-                # Ignore All Loans without mobile cert
-                logging.debug("No Mobile Cert!! Ignore loan %s" %(loanurl))
-                skipped += 1
-            elif (loanmoney >= self.MAX_LOAN):
-                logging.debug("Ignore Loan as it ask for more than MAX_LOAN (%d>%d) - %s" % (loanmoney, self.MAX_LOAN, loanurl))
-                skipped += 1
-            else:
-                result_list.append(loanurl)
+            # 20160501: use 2 hash to store mobile/xueli info as they're not available in the detailed page
+            loanid_to_mobile[loanid] = 0 if (mobile_m is None) else 1
+            loanid_to_xueli[loanid]  = 0 if (xueli_m is None) else 1
                 
-        return (skipped, result_list)
+        return (skipped, loanid_to_mobile, loanid_to_xueli)
     
     def open_loan_detail_page(self, loanurl, referer_url):
         try:
@@ -259,28 +258,31 @@ class PPDSpider(object):
             #logging.debug("HTML: %s" % (html_str))
             m = re.search(self.loan_count_pattern, html_str)
             loan_count = -1
-            loanurl_list = []
+            skipped  = 0
+            loanid_to_mobile = {}
+            loanid_to_xueli  = {}
             if m is not None:
-                skipped, loanurl_list = self.get_loanurllist_from_page_html(html_str)
+                skipped, loanid_to_mobile, loanid_to_xueli = self.get_loaid_list_from_page_html(html_str)
                 loan_count = int(m.group(1))
                 if (loan_count == 0):
                     logging.info("0 Loans detected")
-                    return (0, 0,loanurl_list, 0)
+                    return (0, 0, 0, loanid_to_mobile, loanid_to_xueli)
                 elif (loan_count <= 10):
                     logging.debug("%d loans detected" % (loan_count))
-                    return (loan_count, 1,loanurl_list, skipped)
+                    return (loan_count, 1, skipped, loanid_to_mobile, loanid_to_xueli)
                 else:
                     pass # Continue to check the pages
             
             m =  re.search(self.page_pattern, html_str)
             if m is not None:
-                return (loan_count, int(m.group(1)),loanurl_list, 0)
+                return (loan_count, int(m.group(1)), 0, loanid_to_mobile, loanid_to_xueli)
             else:
                 logging.error( "Not Match the Page Pattern.")
-                return (loan_count, -1,loanurl_list, 0)
-        except HTTPError, e:
-            logging.error("Failed to get pages. Ignore and Continue,but do Check it: HTTPError: %r" %(e))
-            return (0,0,[])
+                return (loan_count, -1, 0, loanid_to_mobile, loanid_to_xueli)
+        except Exception, e:
+            logging.error("Failed to get pages. Ignore and Continue,but do Check it: Exception: %r" %(e))
+            return (-1,-1,0, None, None)
+        
     
     def get_loanid_from_url(self, url):
         m = re.match(self.loanid_url_pattern, url)

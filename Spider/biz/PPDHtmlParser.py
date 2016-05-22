@@ -36,14 +36,14 @@ class PPDHtmlParser(object):
     pattern_current_progress = re.compile('<span id="process" style="width:\s+(\S+?);"></span>')
     pattern_myaccount_money  = re.compile('<div class="inputbox">.*?<p class="accountinfo clearfix">.*?账户余额.*?<em id="accountTotal">&#165;(\S+?)</em>',re.S)
     title_pattern = re.compile('<div class="newLendDetailbox">.*?<h3 class="clearfix">.*?<span class="" tt="\d+">(\S+?)</span>', re.S)
-    job_cert_pattern = re.compile('<tr>.*?<td>.*?稳定工作证明\s*?</td>',re.S)
-    benk_detail_pattern = re.compile('<tr>.*?<td>.*?个人常用银行流水\s*?</td>',re.S)
-    getihu_pattern = re.compile('<tr>.*?<td>.*?企业/个体户证明 \s*?</td>',re.S)
+    job_cert_pattern = re.compile('稳定工作证明')
+    benk_detail_pattern = re.compile('个人常用银行流水')
+    getihu_pattern = re.compile('个体户证明')
     hukou_cert_pattern = re.compile("<p class='clearfix'><i class='hukou'></i>户口所在地")
-    shouru_cert_pattern = re.compile("<td>.*?收入证明\s*?</td>", re.S)
-    id_card_pattern = re.compile("<td>.*?本人身份证的.*?</td>", re.S)
-    ren_hang_trust_cert_pattern = re.compile("<i class='renbankcredit'></i>人行征信认证")
-    shebao_gjj_cert_pattern = re.compile("社保公积金")
+    shouru_cert_pattern = re.compile("收入证明")
+    id_card_pattern = re.compile(".*?身份证的.*?照片")
+    ren_hang_trust_cert_pattern = re.compile("征信认证")
+    shebao_gjj_cert_pattern = re.compile("社保(\/)?公积金")
     zhifubao_cert_pattern = re.compile("支付宝账户信息")
     student_cert_pattern = re.compile("学生证或一卡通正反面")
     driver_cert_pattern = re.compile("机动车行驶证")
@@ -83,7 +83,7 @@ class PPDHtmlParser(object):
         else:
             progress = m.group(1)
             if (progress == '100%'):
-                logging.warn("Loan %d is already fully completed. Continue to parse other loans" % (loanid))
+                logging.debug("Loan %d is already fully completed. Continue to parse other loans" % (loanid))
                 ''' set my money to be -1 to indicate this is 100% completed loan '''
                 return (None, None, -1)
             
@@ -169,14 +169,16 @@ class PPDHtmlParser(object):
         " Parse History Total Loans "
         m2 = re.search(self.pattern_history_loandetail_chart, html)
         if (m2 is not None):
-            history_total_loan_slist = re.findall('(\S+?),\s+', m2.group(1))
+            history_total_loan_slist = re.findall('(\S+?),\s*', m2.group(1))
             flist = []
-            for ts in history_total_loan_slist:
-                flist.append(float(ts))
+            for i in range(0,len(history_total_loan_slist)-1):
+                flist.append(float(history_total_loan_slist[i]))
             ppdloan.history_highest_total_loan = max(flist)
+            ppdloan.new_total_loan = float(history_total_loan_slist[-1]) # -1 means the last one
         else:
             ''' means not able to get the history high '''
             ppdloan.history_highest_total_loan = 0 if ppdloan.history_total_loan == 0 else -1
+            ppdloan.new_total_loan = ppdloan.money
         return (ppdloan,ppduser,mymoney)
     
 

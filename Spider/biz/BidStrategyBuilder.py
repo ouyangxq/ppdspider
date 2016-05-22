@@ -50,10 +50,10 @@ class BidStrategyBuilder(object):
         ''' Bug&Fix: 20160323: Need to initialize in PPBao, otherwise, edu_level_list will contain every levels '''
         ''' 20160331: By Default, set them to accept 'any' so as to simplify the definition in ppbao.config '''
         self.ppdrate_list = ['A', 'B', 'C', 'D', 'E']
-        self.loanrate_list = [18,19, 20, 21, 22, 23, 24]
+        self.loanrate_list = [16,17,18,19, 20, 21, 22, 23, 24]
         self.urank_start = -1
         self.urank_end = -1
-        self.edu_level_list = ['博士研究生','硕士研究生','研究生及以上', '本科']
+        self.edu_level_list = []
         self.first_loan_flag = True
         self.return_ontime_min = -1
         self.overdue_limit = -1
@@ -196,7 +196,7 @@ class BidStrategyBuilder(object):
             logging.info("Strategy Matches! Bid %d for %d!\nPPDloan Summary: %s\nStrategy Matched: %s: %s" % (actual_bid_money, ppdloan.loanid, ppdloan.get_loan_summary(), self.strategy_name, self.strategy_str))
             return (True, actual_bid_money, ppdloan.get_loan_summary(), self)
         else:
-            #logging.info("No match from Strategy: %s" % (self.strategy_str))
+            #logging.info("No match from Strategy: %s: %s" % (self.strategy_name, self.strategy_str))
             return (False, 0, ppdloan.get_loan_summary(), None)
     
     def check_university_rank(self, ppdloan):
@@ -211,7 +211,9 @@ class BidStrategyBuilder(object):
     
     def check_education_level(self, ppdloan):
         ''' if education_level in edu_level_list, return true '''
-        if (self.edu_level_list[0] == self.any):
+        if len(self.edu_level_list) == 0:
+            return True
+        elif (self.edu_level_list[0] == self.any):
             return True if ppdloan.ppduser.education_university != 'NULL' else False
         else:
             return True if (ppdloan.ppduser.education_level in self.edu_level_list) else False
@@ -229,9 +231,9 @@ class BidStrategyBuilder(object):
         ''' Notice, any loan with overdue > 15 days are automatically ignored (return FALSE) '''
         if ppdloan.history_total_loan == 0 and ppdloan.history_left_loan == 0: 
             return True if self.first_loan_flag == True else False
-        if ppdloan.history_overdue_mt15d > 0:
+        elif ppdloan.history_overdue_mt15d > 0:
             return False
-        if ppdloan.history_return_ontime >= self.return_ontime_min and ppdloan.history_overdue_in15d <= self.overdue_limit:
+        elif ppdloan.history_return_ontime >= self.return_ontime_min and ppdloan.history_overdue_in15d <= self.overdue_limit:
             return True
         else:
             return False
@@ -287,11 +289,12 @@ class BidStrategyBuilder(object):
                     (cert == '支付宝' and ppdloan.ppduser.alipay_cert == 1) or
                     (cert == '户口' and ppdloan.ppduser.hukou_cert == 1) or
                     (cert == '社保' and ppdloan.ppduser.shebao_gjj_cert == 1) or
-                    (cert == '工作' and ppdloan.ppduser.shebao_gjj_cert == 1) or
-                    (cert == '收入' and ppdloan.ppduser.shebao_gjj_cert == 1) or
-                    (cert == '征信' and ppdloan.ppduser.shebao_gjj_cert == 1) or
+                    (cert == '工作' and ppdloan.ppduser.job_cert == 1) or
+                    (cert == '收入' and ppdloan.ppduser.shouru_cert == 1) or
+                    (cert == '征信' and ppdloan.ppduser.ren_hang_trust_cert == 1) or
                     (cert == '手机' and ppdloan.ppduser.mobile_cert == 1) or
-                    (cert == '学生证' and ppdloan.ppduser.student_cert == 1)):
+                    (cert == '学生证' and ppdloan.ppduser.student_cert == 1) or 
+                    (cert == '身份证' and ppdloan.ppduser.idcard_cert == 1)):
                     return True
             #　if reaches here, then no certificate matched
             return False
@@ -304,9 +307,9 @@ class BidStrategyBuilder(object):
                     (cert == '支付宝' and ppdloan.ppduser.alipay_cert == 0) or
                     (cert == '户口' and ppdloan.ppduser.hukou_cert == 0) or
                     (cert == '社保' and ppdloan.ppduser.shebao_gjj_cert == 0) or
-                    (cert == '工作' and ppdloan.ppduser.shebao_gjj_cert == 0) or
-                    (cert == '收入' and ppdloan.ppduser.shebao_gjj_cert == 0) or
-                    (cert == '征信' and ppdloan.ppduser.shebao_gjj_cert == 0) or
+                    (cert == '工作' and ppdloan.ppduser.job_cert == 0) or
+                    (cert == '收入' and ppdloan.ppduser.shouru_cert == 0) or
+                    (cert == '征信' and ppdloan.ppduser.ren_hang_trust_cert == 0) or
                     (cert == '学生证' and ppdloan.ppduser.student_cert == 0) or
                     (cert == '手机' and ppdloan.ppduser.mobile_cert == 0) or
                     (cert == '身份证' and ppdloan.ppduser.idcard_cert == 0)):

@@ -15,6 +15,7 @@ class PPBaoConfig(object):
     strategy_ppdrate_list = []
     strategy_loanrate_list = []
     bid_strategy_strlist = []
+    bid_strategy_hash    = {}
     ppdloginid = None
     dbhost = None
     dbuser = None
@@ -30,6 +31,7 @@ class PPBaoConfig(object):
         self.strategy_ppdrate_list = []
         self.strategy_loanrate_list = []
         self.bid_strategy_strlist = []
+        self.bid_strategy_hash = {}
         self.ppdloginid = None
         self.ppbao_config = config
         
@@ -64,6 +66,7 @@ class PPBaoConfig(object):
                     self.strategy_loanrate_list = re.split(',', value)
                 elif (re.match('S\d', item) or re.match("\S+Strategy", item)):
                     self.bid_strategy_strlist.append(value)
+                    self.bid_strategy_hash[item] = value
                 else:
                     print "Unrecognized/Ignored Config item: %s=%s" % (item, value)
             return (self.ppdloginid,self.dbhost,self.dbuser,self.dbpwd,self.dbname)

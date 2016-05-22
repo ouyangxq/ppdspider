@@ -116,6 +116,12 @@ class PPBao(object):
                 self.ppdid_to_userid[ppdid] = ppduserid
             sleep(random.randint(2,6))
     
+    def read_pages(self, page_start, page_end):
+        pass
+        
+    def check_loans(self):
+        pass
+    
     def run(self):
         rd  = 1  # Round
         error_count = 0 # This record down how many errors we have during the run.
@@ -199,7 +205,7 @@ class PPBao(object):
                                 for ppdid in self.ppdloginids:
                                     ppduserid     = self.ppdid_to_userid[ppdid]
                                     # AutoBid
-                                    ifbid, bidmoney, reason = self.ppdid_to_bidstrategy[ppdid].check_by_strategy(ppdloan)
+                                    ifbid, bidmoney, reason, bid_strategy = self.ppdid_to_bidstrategy[ppdid].check_by_strategy(ppdloan)
                                                                         
                                     if ((bidmoney is not None) and (self.ppdid_to_leftmoney.has_key(ppdid)) and (self.ppdid_to_leftmoney[ppdid] < bidmoney)):
                                         logging.warn("%s: NOT ENOUGH MONEY in My Account to Bid(%d<%d). Will Run without BID!!!" % (ppdid, mymoney, bidmoney))
@@ -211,12 +217,12 @@ class PPBao(object):
                                         ppdloan.score = bidmoney
                                         if self.NOBID == True:
                                             ppdloan.bid = 0 # override to 0
-                                            self.mybiddao.insert_bid_record(loanid, now, 0, ppduserid, "NoBidMode:" + reason)
+                                            self.mybiddao.insert_bid_record(loanid, now, 0, ppduserid, "NoBidMode:" + reason, bid_strategy.strategy_name)
                                         else:
                                             # Actually bid for it
-                                            (actual_bid_money, mymoney_left) = self.autobid.bid(self.ppdid_to_spider[ppdid].opener, loanid, ppdloan.maturity, bidmoney, reason)
+                                            (actual_bid_money, mymoney_left) = self.autobid.bid(self.ppdid_to_spider[ppdid].opener, loanid, ppdloan.maturity, bidmoney)
                                             if actual_bid_money > 0:
-                                                self.mybiddao.insert_bid_record(loanid, now, actual_bid_money, ppduserid, reason)
+                                                self.mybiddao.insert_bid_record(loanid, now, actual_bid_money, ppduserid, reason, bid_strategy.strategy_name)
                                                 logging.info("DONE!!! Bid %d for loanid %d!!!" % (actual_bid_money, loanid))
                                             else:
                                                 logging.warn("Bid Failed. No Worries. let's keep going!")

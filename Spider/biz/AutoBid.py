@@ -19,7 +19,7 @@ class AutoBid(object):
     bid_response_pattern = re.compile('.*"ListingId":.*?"UrlReferrer":"1","Money":\d+,"Amount":(\d+).*Message":"投标成功","', re.S)
     actual_bid_pattern = re.compile("已投 &#165;(\d+), 占 ")
     pattern_current_progress = re.compile('<span id="process" style="width:\s+(\S+?);"></span>')
-    patter_myaccount_left = re.compile('账户余额：\s+<em id="accountTotal">&#165;(\S+?)</em>',re.S)
+    pattern_myaccount_left = re.compile('账户余额：\s+<em id="accountTotal">&#165;(\S+?)</em>',re.S)
     
     def __init__(self):
         '''
@@ -129,7 +129,7 @@ class AutoBid(object):
                    "Connection": "keep-alive"
         }
         opener = PPBaoUtil.add_headers(opener, headers)
-        response = opener.open(loanurl, None, 10)
+        response = opener.open(loanurl, None, 15)
         html = PPBaoUtil.get_html_from_response(response)
         #logging.debug("Get Response: %s", html)
         #response_headers = response.info()
@@ -148,13 +148,13 @@ class AutoBid(object):
             actual_bid = -1
         # -1 means not parsed from html
         mymoney = -1
-        ac = re.search(self.patter_myaccount_left, html)
+        ac = re.search(self.pattern_myaccount_left, html)
         if (ac is not None):
             mymoney = float(ac.group(1).replace(',',''))
             logging.info("My Account Left: %4.2f" % (mymoney))
         return (actual_bid, mymoney)
     
-    def bid(self, opener, loanid, maturity, bidmoney, reason):
+    def bid(self, opener, loanid, maturity, bidmoney):
         try: 
             self.step0_open_loan(opener, loanid)
             self.step1_open_actionlog(opener, loanid)
@@ -163,12 +163,16 @@ class AutoBid(object):
             logging.info("Step 3: Bid!!")
             self.step3_bid(opener, maturity,loanid, bidmoney)
             logging.info("Step 4: Open Loan Page!!")
+        except Exception, e:
+            logging.error("Failed to Bid %d with money(%d). Error: %r" %(loanid, bidmoney, e))
+            traceback.print_exc()
+            return (-1, -1)
+        # 20160511: Split into 2 step as if it only failed in 2nd step, bid is most likely successful
+        try:
             sleep(random.randint(1,4))
             logging.info("Open Loan to check!")
-            actual_bid = self.step4_check_bid_result(opener, maturity ,loanid, bidmoney)
-            return actual_bid;
+            return self.step4_check_bid_result(opener, maturity ,loanid, bidmoney)
         except Exception, e:
-            logging.error("Error on Bidding %d with money(%d) - %r" %(loanid, bidmoney, e))
-            traceback.print_exc()
-            return -1;
+            logging.error("Error on Checking the Bid Result for %d with money(%d). Reason: %r" %(loanid, bidmoney, e))
+            return (bidmoney, -1)
         

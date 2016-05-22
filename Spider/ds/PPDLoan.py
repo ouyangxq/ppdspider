@@ -60,8 +60,8 @@ class PPDLoan(PPD):
     '''
     new_total_loan        = 0.0     # New Total Loan
     history_highest_total_loan  = 0.0     # History Highest Loan
-    
     shandian_pattern = re.compile('.*的闪电借款')
+    source = 'page_walker'
     
     def __init__(self, params):
         '''
@@ -95,20 +95,25 @@ class PPDLoan(PPD):
             self.is_shandian_loan = 1
     
     def get_db_insert_statement(self):
+        """ Return the DB INsert Statement so as it's always consistent with the data model 
+        20160521: Add "ON DUPLICATE KEY UPDATE datetime=" so as we don't need to read the old loans every time
+        """
         sql_datetime = self.datetime.strftime("%Y-%m-%d %X")
         db_stat = "insert into ppdloan (loanid, datetime, ppdrate, loanrate, money, maturity, userid, loantitle, age, " + \
                     "history_return_ontime, history_overdue_in15d,history_overdue_mt15d, history_total_loan, history_left_loan, history_left_lend,score,bid, " + \
-                    "has_30or36rate_loan_history, has_lt1000_loan_history, new_total_loan, history_highest_total_loan)" + \
-                    " values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f,%d,%d,%d,%d,%6.2f,%6.2f)" % (self.loanid, \
+                    "has_30or36rate_loan_history, has_lt1000_loan_history, new_total_loan, history_highest_total_loan,source)" + \
+                    " values (%d,\"%s\",\"%s\",%4.1f,%d,%d,\"%s\",\"%s\",%d,%d,%d,%d,%d,%6.2f,%6.2f,%d,%d,%d,%d,%6.2f,%6.2f,\"%s\") ON DUPLICATE KEY UPDATE datetime=\"%s\"" % (self.loanid, \
                     sql_datetime,self.ppdrate,self.loanrate,self.money,self.maturity,self.userid,self.loantitle, \
                     self.age,self.history_return_ontime,self.history_overdue_in15d,self.history_overdue_mt15d, \
                     self.history_total_loan,self.history_left_loan,self.history_left_lend,self.score,self.bid, \
-                    self.has_30or36rate_loan_history, self.has_lt1000_loan_history, self.new_total_loan, self.history_highest_total_loan)
+                    self.has_30or36rate_loan_history, self.has_lt1000_loan_history, self.new_total_loan, \
+                    self.history_highest_total_loan, self.source, sql_datetime)
         return db_stat
     
     def get_loan_summary(self):
-        rank = PPBaoUtil.get_university_rank(self)
-        summary = "Rate(%s),Loan(%d,%d,%d),Education(%s,%s,%s,%d),History(%d,%d,%d),HistoryLoan(%d,%d,%d,%d,%d),Age(%d),%s" \
+        """ Return a Human Readable string of a loan summary """
+        rank = PPBaoUtil.get_university_rank(self.ppduser)
+        summary = "Rate(%s),Loan(%d,%d,%d),Edu(%s,%s,%s,%d),Hist(%d,%d,%d),HistLoan(%d,%d,%d,%d,%d),Age(%d),%s" \
             % (self.ppdrate, self.money, self.loanrate, self.maturity,self.ppduser.education_university, \
                self.ppduser.education_level, self.ppduser.education_type, rank, self.history_return_ontime, self.history_overdue_in15d, \
                self.history_overdue_mt15d, self.history_total_loan, self.history_left_loan, self.history_left_lend, self.history_highest_total_loan, self.new_total_loan, self.age, \
@@ -128,10 +133,25 @@ class PPDLoan(PPD):
             certs = ",Cert(支付宝" if certs is None else (certs + ",支付宝")
         if self.ppduser.student_cert == 1:
             certs = ",Cert(学生证" if certs is None else (certs + ",学生证")
+        if self.ppduser.shebao_gjj_cert == 1:
+            certs = ",Cert(社保" if certs is None else (certs + ",社保")
         if self.ppduser.driver_cert == 1:
             certs = ",Cert(驾驶证" if certs is None else (certs + ",驾驶证")
+        if self.ppduser.hukou_cert == 1:
+            certs = ",Cert(户口" if certs is None else (certs + ",户口")
         certs = ",Cert(NA)" if certs is None else (certs + ")")
         summary += certs
         if self.is_shandian_loan == 1:
-            summary += ",闪电借款"
+            summary += ",闪电标"
+        if self.ppduser.mobile_cert == 0:
+            summary += ",NoMobile"
+        if self.ppduser.idcard_cert == 0:
+            summary += ",NoIDCard"
+        if self.has_30or36rate_loan_history == 1:
+            summary += ",HasHighLoanHist"
+        if (self.source != 'page_walker'):
+            summary += ",source(%s)" % (self.source)
         return summary
+    
+    def set_source(self, source):
+        self.source = source

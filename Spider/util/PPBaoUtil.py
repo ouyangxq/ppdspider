@@ -51,16 +51,16 @@ class PPBaoUtil(object):
         PPBaoUtil.university_to_rank = university_to_rank
     
     @staticmethod
-    def get_university_rank(ppdloan):
+    def get_university_rank(ppduser):
         # Only return Rank for those who have "Normal" Education Type
         # Notice this method shall only be called after set_univeristy_to_rank
-        if (ppdloan.ppduser.education_university == 'NULL'):
+        if (ppduser.education_university == 'NULL'):
             return -2 # None
-        elif (ppdloan.ppduser.education_type != '普通' and ppdloan.ppduser.education_type != '研究生' and ppdloan.ppduser.education_type != ''):
+        elif (ppduser.education_type != u'普通' and ppduser.education_type != u'研究生' and ppduser.education_type != u''):
             return -3 # means 夜大，函授，自考，成人
-        elif ppdloan.ppduser.education_level == '专科' or ppdloan.ppduser.education_level == '专科(高职)':
+        elif ppduser.education_level == u'专科' or ppduser.education_level == u'专科(高职)':
             return -1 # 专科
-        university = ppdloan.ppduser.education_university
+        university = ppduser.education_university
         university = unicode(university)
         if university in PPBaoUtil.university_to_rank.keys():
             return PPBaoUtil.university_to_rank[university]
@@ -75,6 +75,9 @@ class PPBaoUtil(object):
                     ''' 20160324: Limit this to top 10 university as  they have very high quality independent college '''  
                     if rank <= 3:
                         return rank;
+                    elif rank < 50:
+                        ''' 20160502: Treat Independent Colleage as University Rank 120 for rank<50 universities '''
+                        return 120
                     else:
                         #logging.debug("Ignore Independent College for now as it's not top 10: %s,Rank %d" % (university, rank))
                         pass

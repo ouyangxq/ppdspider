@@ -1,6 +1,5 @@
 # coding: utf-8
 '''
-Created on 2016��4��2��
 
 @author: Administrator
 '''
@@ -102,9 +101,9 @@ def get_monthly_pay(money, mrate, month):
 # MAIN FUNCTION
 if __name__ == '__main__':
     #print "Rate,BidMoney,Month,MonthlyPay,JieDuan,Actual,BestBid"
-    for rate in (11,):
-        for month in (15,):
-            for money in (50, 51, 52, 53,54, 55, 60, 155, 160, 165, 170):
+    for rate in (16,):
+        for month in (12,):
+            for money in (50, 51, 52, 53,54, 55, 60, 65, 70,155, 160, 165, 170,240,250,260,270,300,320,330,340,350,360):
                 best_bid = money
                 best_jieduan = 0.01
                 for rmoney in range(money, money+5):
@@ -131,16 +130,19 @@ if __name__ == '__main__':
                 print "%d,%d,%d,%4.4f" % (rate, month, m, j)
             
             '''
-    ''''
+    
     # Monthly Rate
-    mrate = rate / 12;
+    money = 500
+    rate = 0.11
+    month = 12
+    mrate = float(rate / 12);
     print "==== Calc using Func ===="
     print "No.\tMPay\tBenjin\tLixi\tLeft Benjin";
     res2, lixi_total2 = calc_debx(money, mrate, month);
     for r in res2:
         print r;
     print "\nTotal Lixi: %6.2f" % ( lixi_total2 );
-    exit(0);
+    ''''
     print "\n==== Calc using Class ===="
     print "No.\tMPay\tBenjin\tLixi\tLeft Benjin";
     dkcalc = BestBidMoneyCalculator(money, mrate, month);

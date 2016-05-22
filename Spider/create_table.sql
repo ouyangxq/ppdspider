@@ -25,6 +25,7 @@ alter table ppdloan add column has_30or36rate_loan_history BOOLEAN DEFAULT FALSE
 alter table ppdloan add column has_lt1000_loan_history BOOLEAN DEFAULT FALSE; 
 alter table ppdloan add column new_total_loan double(10,2);
 alter table ppdloan add column history_highest_total_loan double(10,2);
+alter tbale ppdloan add column source char(20) DEFAULT 'page_walker';
 
 # User information
 create table ppduser (
@@ -48,6 +49,7 @@ create table ppduser (
      relative_cert BOOLEAN DEFAULT FALSE,
      shouru_cert BOOLEAN DEFAULT FALSE
 )          
+alter table ppduser add column mobile_cert BOOLEAN DEFAULT FALSE;
 # Test
 insert into ppduser values ('pdu2517', 'male', 34, 'married', 'yes', 'no', 'master', 'xidian', 'normal', 0, 1, 0, 0,0,0,0,0,0)     
 
@@ -62,6 +64,14 @@ create table mybid (
 	byautobid boolean not null default 0,
 	primary key (loanid,ppduserid)
 );
+alter table mybid add column strategy_name char(30) DEFAULT NULL;
+
+create table bidstrategy (
+	strategy_name char(30) primary key NOT NULL;
+	strategy_criteria char(250) NOT NULL;
+);
+
+alter table mybid add column strategy_criteria char(30) DEFAULT NULL;
 
 create table university (
 	name varchar(25) not null primary key,

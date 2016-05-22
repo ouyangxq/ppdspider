@@ -23,7 +23,7 @@ def init_ppbao(argv):
     ppbao_config_file = None
     if (len(argv) == 1):
         ppbao_config_file = "../conf/ppbao.18616856236.config"
-        #ppbao_config_file = "../conf/ppbao.18616027065.config"
+        ppbao_config_file = "../conf/ppbao.18616027065.config"
     elif (len(argv) == 2):
         me,ppbao_config_file = argv
     else:

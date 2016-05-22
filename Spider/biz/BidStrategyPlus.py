@@ -19,24 +19,28 @@ class BidStrategyPlus(object):
     '''
     classdocs
     '''
-    bid_strategy_list = []
+    bid_strategy_hash = {}
+    bid_strategy_names = []
     
     def __init__(self, ppbao_config):
         '''
         Constructor
         '''
-        self.bid_strategy_list = []
-        self.ppbao_config = ppbao_config
-        for strategy_str in ppbao_config.bid_strategy_strlist:
-            bs = BidStrategyBuilder(strategy_str)
-            self.bid_strategy_list.append(bs)
-            #print "Print: %s" % (bs.strategy_str)
-            logging.info("Strategy: %s" % (bs.strategy_str))
+        self.bid_strategy_hash = {}
+        self.bid_strategy_names = ppbao_config.bid_strategy_hash.keys();
+        self.bid_strategy_names.sort()
+        for strategy_name in self.bid_strategy_names:
+            bs = BidStrategyBuilder(strategy_name, ppbao_config.bid_strategy_hash[strategy_name])
+            self.bid_strategy_hash[strategy_name] = bs
+            logging.info("%s: %s" % (strategy_name, bs.get_strategy_str()))
+    
+    def get_bid_strategy_hash(self):
+        return self.bid_strategy_hash
     
     def check_by_strategy(self, ppdloan):
-        for strategy in self.bid_strategy_list:
-            (ifbid, money, reason) = strategy.check_by_strategy(ppdloan)
+        for strategy_name in self.bid_strategy_names:
+            (ifbid, money, reason, bs) = self.bid_strategy_hash[strategy_name].check_by_strategy(ppdloan)
             if (ifbid == True and money > 0):
-                return (ifbid, money, reason)
+                return (ifbid, money, reason, bs)
         #logging.info("No Bid for %d as no Strategy match this Loan!" % (ppdloan.loanid))
-        return (False, 0, ppdloan.get_loan_summary())
+        return (False, 0, ppdloan.get_loan_summary(), None)
