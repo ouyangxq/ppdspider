@@ -151,7 +151,7 @@ class AutoBid(object):
         ac = re.search(self.pattern_myaccount_left, html)
         if (ac is not None):
             mymoney = float(ac.group(1).replace(',',''))
-            logging.info("My Account Left: %4.2f" % (mymoney))
+            #logging.info("My Account Left: %4.2f" % (mymoney))
         return (actual_bid, mymoney)
     
     def bid(self, opener, loanid, maturity, bidmoney):
@@ -170,7 +170,7 @@ class AutoBid(object):
         # 20160511: Split into 2 step as if it only failed in 2nd step, bid is most likely successful
         try:
             sleep(random.randint(1,4))
-            logging.info("Open Loan to check!")
+            #logging.info("Open Loan to check!")
             return self.step4_check_bid_result(opener, maturity ,loanid, bidmoney)
         except Exception, e:
             logging.error("Error on Checking the Bid Result for %d with money(%d). Reason: %r" %(loanid, bidmoney, e))

@@ -19,7 +19,7 @@ class MyBidDAO(object):
     
     def insert_bid_record(self, loanid, now, money, ppduserid, reason, strategy_name):
         sqlnow = now.strftime('%Y-%m-%d %X')
-        db_stat = "insert into mybid (loanid, datetime, money, ppduserid, reason, strategy_name) values(%d, \"%s\", %d, \"%s\", \"%s\", \"%s\")" % (loanid, sqlnow, money, ppduserid, reason, strategy_name)
+        db_stat = "replace into mybid (loanid, datetime, money, ppduserid, reason, strategy_name) values(%d, \"%s\", %d, \"%s\", \"%s\", \"%s\")" % (loanid, sqlnow, money, ppduserid, reason, strategy_name)
         #logging.info("Inserting new loan into DB: %s" %(db_stat))
         result  = self.dao.execute(db_stat)
         return result

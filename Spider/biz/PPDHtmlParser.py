@@ -15,7 +15,11 @@ class PPDHtmlParser(object):
     '''
     HTML Parser: parse the HTML contents and build as PPDLoan / PPDUser Instance
     '''
-
+    status_normal   = 0 
+    status_under_evaluation = 1
+    status_invalid  = 2
+    status_completed = 3
+    
     # Patterns:
     pattern_user_basic_info = re.compile('<div class="lendDetailTab w1000center">.*?<div class="lendDetailTab_tabContent">.*?' 
                                     + '<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?</tr>.*?<tr>.*?' 
@@ -61,14 +65,45 @@ class PPDHtmlParser(object):
     - We shall not bid any loan that has history Loan Rate as 30% or 36% '''
     pattern_all_history_loan = re.compile('<p>历史借款</p>.*?<table class="lendDetailTab_tabContent_table1">.*?<tr>.*?</tr>(.*?)</table>', re.S);
     pattern_history_loan = re.compile('<tr>\s+<td>\s+(\d+).*?</td>.*?<td style="text-align: left">\s+<a href=".*?</a>\s+</td>\s+?<td>\s+?(\S+)%\s+?</td>\s+<td>.*?&#165;(\S+?)\s+</td>\s+<td>\s+(\S+?)\s+</td>\s+<td>\s+?(\S+)\s+?</td>\s+</tr>', re.S)
-
+    pattern_history_loan_retuan_dates = re.compile('xAxis: \{.*?categories: \[(.*?)\],', re.S)
     pattern_history_loandetail_chart = re.compile("name: '负债曲线',\s+data: \[\s+(.*?)\s+\]\s+\}", re.S)
+    pattern_status_normal = re.compile('借款余额：')
+    pattern_status_under_estimation = re.compile('(正在评估中)|(正在预审中)')
+    pattern_status_invalid = re.compile('(403 Forbidden)|(投标已结束)')
+    pattern_status_completed = re.compile('借款成功')
+    pattern_ppdrate = re.compile('class="creditRating (\S+)"')
+    pattern_good_bidders = re.compile('(kuku9991)|(jiangmg520)')
     
     def __init__(self):
         '''
         Constructor
         '''
         pass
+        
+    def get_loan_status (self, loanid, html):
+        '''
+        Valid Loan status: normal(0), under_evaluation(1), invalid(2)
+        '''
+        if (re.search(self.pattern_status_normal, html)):
+            return self.status_normal
+        elif (re.search(self.pattern_status_completed, html)):
+            return self.status_completed
+        elif (re.search(self.pattern_status_under_estimation, html)):
+            return self.status_under_evaluation
+        elif (re.search(self.pattern_status_invalid, html)):
+            return self.status_invalid
+        else:
+            logging.info("Error: get_loan_status: Not able to match the status for loanid: %d. Assume it's invalid." % (loanid))
+            return self.status_invalid
+    
+    def get_loan_ppdrate(self, loanid, html):
+        m = re.search(self.pattern_ppdrate, html)
+        if m is not None:
+            return m.group(1)
+        else:
+            logging.info("Error: get_loan_ppdrate: not able to match the patter for loanid: %d. " % (loanid))
+            return None
+        
         
     def parse_loandetail_html(self, loanid, datetime, html):
         '''
@@ -91,7 +126,7 @@ class PPDHtmlParser(object):
         m = re.search(self.pattern_user_basic_info, html)
         if m is None:
             if (re.search('<div class="newbidstatus_lb">投标已结束</div>', html) is not None):
-                logging.warn("Loan %d is Aborted by PPDAI. No Check further. Continue.")
+                logging.warn("Loan %d is Aborted by PPDAI. No Check further. Continue." % (loanid))
                 return (None, None, -1)
             else:
                 logging.error("Error 2: Not able to get user basic info! PPDai Loan Detail Page pattern has been changed! Check/Modify it and retry")
@@ -162,6 +197,10 @@ class PPDHtmlParser(object):
         ppduser.student_cert = 1 if re.search(self.student_cert_pattern, html) else 0
         ppduser.driver_cert = 1 if re.search(self.driver_cert_pattern, html) else 0
         
+        gbm = re.search(self.pattern_good_bidders, html)
+        if gbm is not None:
+            ppdloan.set_source('kuku9991') 
+        
         (IfHas30or36RateLoan, IfHasLessThan1000Loan) = self.check_history_loan(ppdloan, html)
         ppdloan.has_30or36rate_loan_history = 1 if IfHas30or36RateLoan == True else 0
         ppdloan.has_lt1000_loan_history = 1 if IfHasLessThan1000Loan == True else 0
@@ -173,7 +212,31 @@ class PPDHtmlParser(object):
             flist = []
             for i in range(0,len(history_total_loan_slist)-1):
                 flist.append(float(history_total_loan_slist[i]))
-            ppdloan.history_highest_total_loan = max(flist)
+            """ This is to filter the history max loan by remove the duplication return dates that I noticed
+            Basically what happened is the loaner can loan a lot but he or she has to pay the previous loan first (can't withdraw to his bank account directly)
+            So it's not a valid max history loan per say, so add an extra logic to deal with it. 
+            """
+            m3 = re.search(self.pattern_history_loan_retuan_dates, html)
+            if (m3 is not None):
+                history_return_dates = re.findall('\s*"(\d+\/\d+\/\d+)",', m3.group(1))
+                if len(history_return_dates) == len(history_total_loan_slist):
+                    (max_hloan, mdate) = (flist[0], history_return_dates[0])
+                    for i in range(1, len(flist)):
+                        #logging.debug("HistoryDate: %s: %d" % (history_return_dates[i], flist[i]) )
+                        if (max_hloan < flist[i]):
+                            max_hloan = flist[i]
+                            mdate = history_return_dates[i]
+                        elif mdate == history_return_dates[i]:
+                            logging.debug("Set Max History Loan for %d from %d to %d as date(%s) is same." % (loanid, max_hloan, flist[i], mdate))
+                            max_hloan = flist[i]
+                        else:
+                            pass
+                    
+                    ppdloan.history_highest_total_loan = max_hloan
+                else:
+                    ppdloan.history_highest_total_loan = max(flist)
+            else:
+                ppdloan.history_highest_total_loan = max(flist)
             ppdloan.new_total_loan = float(history_total_loan_slist[-1]) # -1 means the last one
         else:
             ''' means not able to get the history high '''

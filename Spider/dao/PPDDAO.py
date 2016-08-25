@@ -8,6 +8,7 @@ Created on 2016年2月20日
 '''
 import MySQLdb
 import logging
+import re
 
 class PPDDAO(object):
     '''
@@ -58,6 +59,18 @@ class PPDDAO(object):
                 logging.debug("DB Execution-No Result for: %s" % (sql_stat))
                 return False
         except MySQLdb.MySQLError, e:
-            logging.error("Failed to execute: %s - %r" % (sql_stat, e))
+            error_msg = "%r" % (e)
+            logging.error("Failed to execute: %s - %s" % (sql_stat, error_msg))
+            if (re.match("OperationalError(2006",error_msg)):
+                logging.warn("Reconnecting to MySQL...")
+                self.connect()
+                result = self.dbcursor.execute(sql_stat)
+                if result:
+                    logging.debug("DB Execution Succeed: %s" % (sql_stat))
+                    self.dbconn.commit()
+                    return True
+                else:
+                    logging.debug("DB Execution-No Result for: %s" % (sql_stat))
+                    return False
             return False
             

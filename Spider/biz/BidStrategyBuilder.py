@@ -9,6 +9,7 @@ import re
 import logging
 from util.PPBaoUtil import PPBaoUtil
 from util.BestBidMoney import BestBidMoney
+from ds.PPDLoan import PPDLoan
 
 class BidStrategyBuilder(object):
     '''
@@ -22,6 +23,7 @@ class BidStrategyBuilder(object):
     urank_start = -1
     urank_end = -1
     edu_level_list = []
+    marriage_status_list = []
     first_loan_flag = False
     return_ontime_min = -1
     overdue_limit = -1
@@ -40,6 +42,8 @@ class BidStrategyBuilder(object):
     has_one_cert_list = []
     has_certs_list = []
     left_lend = -1
+    source = any
+    loan_money = any
     strategy_name = ""
 
     def __init__(self, strategy_name, strategy_str):
@@ -54,6 +58,7 @@ class BidStrategyBuilder(object):
         self.urank_start = -1
         self.urank_end = -1
         self.edu_level_list = []
+        self.marriage_status_list = ['已婚', '未婚', '其他']
         self.first_loan_flag = True
         self.return_ontime_min = -1
         self.overdue_limit = -1
@@ -71,6 +76,8 @@ class BidStrategyBuilder(object):
         self.lt_history_max_loan = -1
         self.has_one_cert_list = []
         self.has_certs_list = []
+        self.source = self.any
+        self.min_loan_money = -1
         self.bid_money = -1
         self.strategy_name = strategy_name
         self.strategy_str = strategy_str.decode('gbk').encode('utf8')
@@ -109,6 +116,13 @@ class BidStrategyBuilder(object):
                 for edu in edu_level_list:
                     #print "Edu: %s" % (edu)
                     self.edu_level_list.append(edu)
+            m = re.match('marriage\((\S+)\)', criteria)
+            if (m is not None):
+                marriage_status_list = re.split(",", m.group(1))
+                self.marriage_status_list = []
+                for marriage in marriage_status_list:
+                    #print "Edu: %s" % (edu)
+                    self.marriage_status_list.append(marriage)
             m = re.match('has_one_cert\((\S+)\)', criteria)
             if (m is not None):
                 certs = re.split(",", m.group(1))
@@ -137,6 +151,12 @@ class BidStrategyBuilder(object):
             m = re.match('gender\((\S+)\)', criteria)
             if (m is not None):
                 self.gender = m.group(1) #.decode('gbk').encode('utf-8')
+            m = re.match('source\((\S+)\)', criteria)
+            if (m is not None):
+                self.source = m.group(1)
+            m = re.match('min_loan_money\((\S+)\)', criteria)
+            if (m is not None):
+                self.min_loan_money = int(m.group(1))
             m = re.match('age\((\S+)\)', criteria)
             if (m is not None):
                 age_start, age_end = re.split(",", m.group(1))
@@ -183,6 +203,9 @@ class BidStrategyBuilder(object):
             self.check_highrate_loan_history(ppdloan) and
             self.check_shandian_loan(ppdloan) and
             self.check_left_lend(ppdloan) and
+            self.check_source(ppdloan) and
+            self.check_min_loan_money(ppdloan) and
+            self.check_marriage(ppdloan) and
             self.check_certificates(ppdloan)):
             actual_bid_money = 0
             if (self.bid_money != -1):
@@ -216,7 +239,19 @@ class BidStrategyBuilder(object):
         elif (self.edu_level_list[0] == self.any):
             return True if ppdloan.ppduser.education_university != 'NULL' else False
         else:
-            return True if (ppdloan.ppduser.education_level in self.edu_level_list) else False
+            return True if (ppdloan.ppduser.education_level in self.edu_level_list and ppdloan.ppduser.education_university != 'NULL') else False
+    
+    def check_marriage(self, ppdloan):
+        ''' if education_level in edu_level_list, return true '''
+        if len(self.marriage_status_list) == 0:
+            return True
+        elif (self.marriage_status_list[0] == self.any):
+            return True
+        elif (ppdloan.ppduser.marriage in self.marriage_status_list):
+            return True
+        else:
+            logging.info("Failed on Marriage Check for %d - %s" % (ppdloan.loanid, ppdloan.ppduser.marriage))
+            return False
     
     def check_new_total_loan(self, ppdloan):
         # -1 means not defined and can be any value
@@ -243,7 +278,23 @@ class BidStrategyBuilder(object):
     
     def check_gender(self, ppdloan):
         return True if (self.gender == self.any or ppdloan.ppduser.gender == self.gender) else False
-
+    
+    def check_source(self, ppdloan):
+        if (self.source == self.any or self.source == ppdloan.source):
+            return True
+        elif (self.source == self.yes and ppdloan.source != PPDLoan.DEFAULT_SOURCE):
+            return True
+        elif (re.search(ppdloan.source, self.source)):
+            ''' if self.source contains ppdloan.source, then it's also good '''
+            return True
+        else:
+            #logging.warn("Not match Source %s - %s" % (self.source, ppdloan.source))
+            return False
+        
+    # This is for good loans PPDAI gives he loaner very good E Du
+    def check_min_loan_money(self, ppdloan):
+        return True if (ppdloan.money >= self.min_loan_money) else False
+    
     def check_highrate_loan_history(self,ppdloan):
         if (self.check_highrate_loan_history_flag == True and ppdloan.has_30or36rate_loan_history == 1):
             return False

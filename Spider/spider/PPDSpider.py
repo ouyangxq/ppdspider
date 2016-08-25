@@ -152,7 +152,7 @@ class PPDSpider(object):
             response.close()
             return self.get_loaid_list_from_page_html(html_str)
         except HTTPError, e:
-            logging.error("Failed to open page: %s - Reason: %r" %( loan_url, e))
+            logging.debug("Failed to open page: %s - Reason: %r" %( loan_url, e))
             return (-1, None, None)
         except Exception,e:
             logging.error("Open Page to get loan list failed. URL: %s. Error: %r" %(loan_url, e))
@@ -222,7 +222,7 @@ class PPDSpider(object):
             response.close()
             return html_str
         except urllib2.URLError, e:
-            logging.error("Not able to open %s, %r" % (url, e))
+            logging.debug("Not able to open %s, %r" % (url, e))
             return None
         except Exception,e:
             logging.error("On OpenPage %s - Caught Exception %r" %(url,e))
