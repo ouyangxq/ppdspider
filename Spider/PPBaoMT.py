@@ -479,9 +479,6 @@ if __name__ == '__main__':
     4. Sleep and continue with step 2
     '''
     
-    #ppbao = PPBaoMT(("conf/ppbao.18616856236.config","conf/ppbao.18616027065.config"))
-    #ppbao = PPBaoMT(("conf/ppbao.18616027065.config",))
-    #ppbao = PPBaoMT(("conf/ppbao.18616856236.config",))
     ppbao = PPBaoMT(("conf/ppbao.me.config",))
     #ppbao = PPBaoMT(("conf/ppbao.me.config","conf/ppbao.ss.config"))
     ppbao.init()
